@@ -1,0 +1,52 @@
+alias: "📊 Zigbee : Rapport Journalier"
+description: Envoie un bilan des piles et devices offline chaque soir à 20h
+triggers:
+  - trigger: time
+    at: "17:18:00"
+conditions:
+  - condition: numeric_state
+    entity_id: sensor.zigbee_battery_alerts
+    above: 0
+actions:
+  - variables:
+      alert_list: >
+        {% set devices = state_attr('sensor.zigbee_battery_alerts',
+        'alert_devices') | default([]) %} {% set report = namespace(text="") %}
+        {% for d in devices %}
+          {% set info = "" %}
+          {% if d.status == 'offline' %}
+            {% set info = "🔴 **HORS-LIGNE**" %}
+          {% elif d.battery == '?' %}
+            {% set info = "❓ **BATTERIE INCONNUE**" %}
+          {% else %}
+            {% set info = "🪫 **BATTERIE " ~ d.battery ~ "%**" %}
+          {% endif %}
+          {% set report.text = report.text ~ "- " ~ d.name ~ " : " ~ info ~ " (Dernière maintenance : *" ~ d.maintenance ~ "*)\n" %}
+        {% endfor %} {{ report.text }}
+  - action: script.k_2so_generateur_de_message
+    data:
+      mission: rapport_zigbee
+      details: "{{ alert_list }}"
+      consigne: >-
+        Fais une courte introduction sarcastique (2-3 phrases) sur
+        l'incompétence de l'humain à gérer ses piles. Ne liste pas les appareils
+        toi-même, je vais les ajouter après.
+    response_variable: generated_message
+  - parallel:
+      - action: script.notification_discord
+        data:
+          nom: 📊 Rapport Santé Zigbee
+          description: |
+            {{ generated_message.data }}
+
+            **Liste des appareils en souffrance :**
+            {{ alert_list }}
+      - action: script.awtrix_dynamique_customapp_and_notify
+        data:
+          message: "Zigbee: {{ states('sensor.zigbee_battery_alerts') }} alertes"
+          icone: warning
+          color: "#FFA500"
+          rainbow: "false"
+          scrollspeed: "50"
+          duree: "25"
+mode: single
