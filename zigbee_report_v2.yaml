@@ -1,0 +1,154 @@
+alias: "📊 Zigbee : Rapport Journalier V2"
+description: >-
+  Envoie un bilan des piles ET des appareils offline (réseau) chaque soir à 20h.
+  Utilise des trigger_id pour différencier les sources d'alerte.
+
+triggers:
+  # Rapport programmé - vérifie les deux types d'alertes
+  - trigger: time
+    at: "20:00:00"
+    id: scheduled
+
+  # Alerte immédiate si une batterie passe sous le seuil
+  - trigger: state
+    entity_id: sensor.zigbee_battery_alerts
+    id: battery_alert
+
+  # Alerte immédiate si un appareil devient offline
+  - trigger: state
+    entity_id: sensor.z2m_network_monitor
+    id: network_alert
+
+conditions:
+  # Pour les triggers temps réel : ne pas déclencher si state = 0
+  - condition: or
+    conditions:
+      - condition: trigger
+        id: scheduled
+      - condition: template
+        value_template: >
+          {{ states('sensor.zigbee_battery_alerts') | int(0) > 0 or
+             states('sensor.z2m_network_monitor') | int(0) > 0 }}
+
+actions:
+  # Variables communes
+  - variables:
+      battery_count: "{{ states('sensor.zigbee_battery_alerts') | int(0) }}"
+      network_count: "{{ states('sensor.z2m_network_monitor') | int(0) }}"
+      battery_devices: "{{ states('sensor.z2m_battery_devices') | int(0) }}"
+      total_zigbee: "{{ state_attr('sensor.z2m_battery_devices', 'raw_devices') | default([]) | length }}"
+      has_alerts: "{{ battery_count > 0 or network_count > 0 }}"
+
+  # Choix selon présence d'alertes ou non
+  - choose:
+      # CAS 1 : Il y a des alertes
+      - conditions:
+          - condition: template
+            value_template: "{{ has_alerts }}"
+        sequence:
+          # Construire les listes d'alertes
+          - variables:
+              battery_list: >
+                {% set devices = state_attr('sensor.zigbee_battery_alerts', 'alert_devices') | default([]) %}
+                {% set report = namespace(text="") %}
+                {% for d in devices %}
+                  {% set info = "" %}
+                  {% if d.status == 'offline' %}
+                    {% set info = "🔴 **HORS-LIGNE**" %}
+                  {% elif d.battery == '?' %}
+                    {% set info = "❓ **BATTERIE INCONNUE**" %}
+                  {% else %}
+                    {% set info = "🪫 **BATTERIE " ~ d.battery ~ "%**" %}
+                  {% endif %}
+                  {% set report.text = report.text ~ "- " ~ d.name ~ " : " ~ info ~ " (Maintenance : *" ~ d.maintenance ~ "*)\n" %}
+                {% endfor %}
+                {{ report.text }}
+              
+              network_list: >
+                {% set devices = state_attr('sensor.z2m_network_monitor', 'offline_list') | default([]) %}
+                {% set report = namespace(text="") %}
+                {% for d in devices %}
+                  {% set report.text = report.text ~ "- " ~ d.name ~ " : 📡 **SILENCIEUX** depuis " ~ d.hours_ago | round(0) ~ "h\n" %}
+                {% endfor %}
+                {{ report.text }}
+              
+              alert_summary: >
+                {% set parts = [] %}
+                {% if battery_count > 0 %}
+                  {% set parts = parts + [battery_count ~ " alerte(s) batterie"] %}
+                {% endif %}
+                {% if network_count > 0 %}
+                  {% set parts = parts + [network_count ~ " appareil(s) silencieux"] %}
+                {% endif %}
+                {{ parts | join(" et ") }}
+
+          # Message K-2SO mode alerte
+          - action: script.k_2so_generateur_de_message
+            data:
+              mission: rapport_zigbee
+              details: "{{ alert_summary }}"
+              consigne: >-
+                Fais une courte introduction sarcastique (2-3 phrases) sur
+                l'incompétence de l'humain à gérer son réseau Zigbee. Ne liste pas les appareils
+                toi-même, je vais les ajouter après.
+            response_variable: generated_message
+
+          # Notifications alertes
+          - parallel:
+              - action: script.notification_discord
+                data:
+                  nom: 📊 Rapport Santé Zigbee
+                  description: |
+                    {{ generated_message.data }}
+
+                    **📊 Réseau : {{ total_zigbee }} appareils Zigbee ({{ battery_devices }} sur batterie)**
+
+                    **🔋 Batteries ({{ battery_count }} alerte{{ 's' if battery_count > 1 else '' }}) :**
+                    {{ battery_list if battery_count > 0 else '✅ Aucune alerte' }}
+
+                    **📡 Réseau ({{ network_count }} silencieux) :**
+                    {{ network_list if network_count > 0 else '✅ Tous les appareils communiquent' }}
+
+              - action: script.awtrix_dynamique_customapp_and_notify
+                data:
+                  message: "Zigbee: {{ battery_count }} piles, {{ network_count }} offline"
+                  icone: warning
+                  color: "{{ '#FF0000' if network_count > 0 else '#FFA500' }}"
+                  rainbow: "false"
+                  scrollspeed: "50"
+                  duree: "25"
+
+    # CAS 2 : Tout va bien !
+    default:
+      - action: script.k_2so_generateur_de_message
+        data:
+          mission: rapport_zigbee
+          details: "{{ total_zigbee }} appareils Zigbee dont {{ battery_devices }} sur batterie, tous opérationnels"
+          consigne: >-
+            Fais un court message satisfait (1-2 phrases) sur le fait que tous les
+            appareils Zigbee fonctionnent parfaitement. Reste dans le personnage K-2SO,
+            tu peux être surpris ou suspicieux que tout aille bien.
+        response_variable: generated_message
+
+      - parallel:
+          - action: script.notification_discord
+            data:
+              nom: ✅ Rapport Santé Zigbee
+              description: |
+                {{ generated_message.data }}
+
+                **📊 Réseau : {{ total_zigbee }} appareils Zigbee**
+                • 🔋 **{{ battery_devices }}** sur batterie surveillés
+                • ✅ **0** alerte batterie
+                • 📡 **0** appareil silencieux
+
+          - action: script.awtrix_dynamique_customapp_and_notify
+            data:
+              message: "Zigbee: Tout OK!"
+              icone: checkmark
+              color: "#00FF00"
+              rainbow: "false"
+              scrollspeed: "50"
+              duree: "15"
+
+mode: single
