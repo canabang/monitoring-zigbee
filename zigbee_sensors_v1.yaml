@@ -110,8 +110,15 @@
                 | selectattr('attributes.friendly_name', 'search', d.friendly_name)
                 | first | default(none) %}
             {% endif %}
+            
+            {# FIX V6: Essai 4 - Recherche entités _battery ou _battery_state SANS device_class #}
+            {% if batt_entity is none %}
+              {% set batt_entity = states.sensor 
+                | selectattr('entity_id', 'search', search_name ~ '_battery')
+                | first | default(none) %}
+            {% endif %}
 
-            {# Essai 4 : Recherche de n'importe quelle entité liée à ce nom pour le statut Online/Offline #}
+            {# Essai 5 : Recherche de n'importe quelle entité liée à ce nom pour le statut Online/Offline #}
             {% if batt_entity is none %}
                {% set any_entity = states.sensor 
                  | selectattr('entity_id', 'search', search_name)
