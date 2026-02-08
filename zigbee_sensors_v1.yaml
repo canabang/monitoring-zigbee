@@ -39,11 +39,23 @@
             "raw_devices_length": {{ this.attributes.raw_devices | length if this.attributes.raw_devices is not none else -1 }}
           }
         
-        # Stockage de la liste brute pour permettre le refresh manuel sans MQTT
-        # FIX V3: Triple protection + ne rien faire si pas de données MQTT sur trigger state
+        # Stockage de la liste ALLÉGÉE (sans icônes/bindings/clusters)
+        # FIX V4: Évite la limite de 16KB des attributs HA
         raw_devices: >
           {% if trigger.platform == 'mqtt' and trigger.payload is defined %}
-            {{ trigger.payload | from_json }}
+            {% set full_list = trigger.payload | from_json %}
+            {% set ns = namespace(light=[]) %}
+            {% for d in full_list %}
+              {% set ns.light = ns.light + [{
+                'friendly_name': d.friendly_name,
+                'ieee_address': d.ieee_address | default(''),
+                'type': d.type | default('Unknown'),
+                'power_source': d.power_source | default('Unknown'),
+                'description': d.description | default(''),
+                'model': d.model_id | default('')
+              }] %}
+            {% endfor %}
+            {{ ns.light }}
           {% elif this.attributes.raw_devices is defined and this.attributes.raw_devices is not none %}
             {{ this.attributes.raw_devices }}
           {% else %}
