@@ -2,10 +2,36 @@
 
 Ce projet permet de surveiller l'état de santé de tous vos appareils Zigbee sur batterie. Il croise les données de **Zigbee2MQTT** (pour les métadonnées comme les dates de changement de pile) avec les états de **Home Assistant** (pour le niveau de pile et la disponibilité).
 
+---
+
+## � Sommaire
+
+| Section | Description |
+|---------|-------------|
+| [�📂 Structure du Projet](#-structure-du-projet) | Liste des fichiers |
+| [⚠️ Pré-requis MQTT](#️-pré-requis-important--topic-mqtt) | Configuration du topic |
+| [🛠️ Installation](#️-installation--configuration) | 3 méthodes d'installation |
+| [⚙️ Fonctionnement Technique](#️-fonctionnement-technique) | Explication des capteurs |
+| [📋 Dates de maintenance](#-comment-tenir-à-jour-les-dates-) | Mise à jour des piles |
+| [📊 Cartes Dashboard](#-bonus--carte-dashboard) | Affichage visuel |
+| [🔔 Automation Simplifiée](#-automation-simplifiée-zigbee_report_simpleyaml) | Notifications persistantes |
+| [🧪 Comment Tester](#-comment-tester) | Tests et debug |
+| [🔧 Compatibilité](#-compatibilité) | Corrections appliquées |
+
+---
+
 ## 📂 Structure du Projet
 
-- `zigbee_sensors.yaml` : Contient **tous** les capteurs (Batteries + Disponibilité "Radar").
-- `README.md` : Ce fichier de documentation.
+```
+monitoring-zigbee/
+├── zigbee_sensors.yaml          # Capteurs (inventaire, alertes, réseau)
+├── dashboard_card.yaml          # Carte dashboard batteries
+├── dashboard_network_card.yaml  # Carte dashboard réseau
+├── zigbee_report_simple.yaml    # Automation simplifiée (notification HA)
+├── zigbee_report.yaml           # Automation perso (K-2SO/Discord/Awtrix)
+├── debug_templates.md           # Templates de diagnostic
+└── README.md                    # Documentation
+```
 
 ## ⚠️ Pré-requis Important : Topic MQTT
 Le fichier `zigbee_sensors.yaml` est configuré par défaut avec un topic spécifique : **`zigbee2mqtt02`**.
@@ -159,21 +185,7 @@ Ce projet a été testé avec différentes configurations et inclut des correcti
 | **Entités sans device_class** | Recherche élargie des capteurs batterie |
 | **Noms avec espaces** | Conversion automatique `espaces → underscores` pour matcher les entity_id |
 
----
 
-## 📂 Liste des Fichiers
-
-| Fichier | Description |
-|---------|-------------|
-| `zigbee_sensors.yaml` | Capteurs principaux (inventaire, alertes, réseau) |
-| `dashboard_card.yaml` | Carte dashboard pour les batteries |
-| `dashboard_network_card.yaml` | Carte dashboard pour le moniteur réseau |
-| `zigbee_report.yaml` | Automation perso (K-2SO + Discord + Awtrix) |
-| `zigbee_report_simple.yaml` | **Automation simplifiée** (notification persistante HA) |
-| `debug_templates.md` | Templates de diagnostic |
-| `README.md` | Cette documentation |
-
----
 
 ## 🔔 Automation Simplifiée (`zigbee_report_simple.yaml`)
 
