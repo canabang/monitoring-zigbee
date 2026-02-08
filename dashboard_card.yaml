@@ -10,10 +10,13 @@ cards:
 
       {% set ns = namespace(alerts=[], ok=[]) %}
 
-      {% for d in devices %}
-        {% set bat_val = d.battery | float(-1) if d.battery != '?' else -1 %}
-        {% if d.status == 'offline' or d.battery == '?' or (bat_val != -1 and bat_val < 15) %}
-          {% set ns.alerts = ns.alerts + [{'name': d.name, 'bat_display': d.battery, 'bat_val': bat_val, 'status': d.status, 'maint': d.maintenance}] %}
+      {% for d in devices if devices %}
+        {# FIX V2: Gestion des valeurs ~90/~50/~10 et "unknown" #}
+        {% set bat_str = d.battery | string %}
+        {% set is_unknown = bat_str in ['?', 'unknown', 'unavailable', 'None'] %}
+        {% set bat_val = bat_str | replace('~', '') | float(999) if not is_unknown else 999 %}
+        {% if d.status == 'offline' or is_unknown or (bat_val < 15) %}
+          {% set ns.alerts = ns.alerts + [{'name': d.name, 'bat_display': d.battery if not is_unknown else '?', 'bat_val': bat_val, 'status': d.status, 'maint': d.maintenance}] %}
         {% else %}
           {% set ns.ok = ns.ok + [{'name': d.name, 'bat_display': d.battery, 'bat_val': bat_val, 'status': d.status, 'maint': d.maintenance}] %}
         {% endif %}
@@ -30,9 +33,7 @@ cards:
 
       {% for d in ns.alerts | sort(attribute='bat_val') -%}
 
-      | **{{ d.name }}** | {{ '🔴 HORS-LIGNE' if d.status == 'offline' else '⚠️
-      FAIBLE' if d.bat_val != -1 else '❓ INCONNU' }} | {{ d.bat_display }}% | {{
-      d.maint }} |
+      | **{{ d.name }}** | {{ '🔴 HORS-LIGNE' if d.status == 'offline' else '⚠️ FAIBLE' if d.bat_val < 15 else '❓ INCONNU' }} | {{ d.bat_display }}% | {{ d.maint }} |
 
       {% endfor %}
 
