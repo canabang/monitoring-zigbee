@@ -3,10 +3,18 @@
 Ce projet permet de surveiller l'état de santé de tous vos appareils Zigbee sur batterie. Il croise les données de **Zigbee2MQTT** (pour les métadonnées comme les dates de changement de pile) avec les états de **Home Assistant** (pour le niveau de pile et la disponibilité).
 
 ## 📂 Structure du Projet
-Les fichiers sont situés dans le dossier `/mnt/Data/Github/monitoring-zigbee/`.
 
 - `zigbee_sensors.yaml` : Contient les capteurs template.
 - `README.md` : Ce fichier de documentation.
+
+## ⚠️ Pré-requis Important : Topic MQTT
+Le fichier `zigbee_sensors.yaml` est configuré par défaut avec un topic spécifique : **`zigbee2mqtt02`**.
+```yaml
+- trigger:
+    - platform: mqtt
+      topic: zigbee2mqtt02/bridge/devices  <-- VÉRIFIEZ CE TOPIC !
+```
+Si votre installation Zigbee2MQTT utilise le topic par défaut (`zigbee2mqtt`), **vous devez modifier cette ligne** dans le fichier avant l'installation pour mettre : `zigbee2mqtt/bridge/devices`.
 
 ## 🛠️ Installation & Configuration
 
