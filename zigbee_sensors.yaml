@@ -1,7 +1,7 @@
 
 # Surveillance enrichie des devices Zigbee sur batterie
 # Ce capteur centralise les données MQTT de Z2M et les croise avec les états Home Assistant
-# Dossier : unvalaible-device
+# Dossier : monitoring-zigbee
 
 - trigger:
     - platform: mqtt

@@ -3,7 +3,7 @@
 Ce projet permet de surveiller l'état de santé de tous vos appareils Zigbee sur batterie. Il croise les données de **Zigbee2MQTT** (pour les métadonnées comme les dates de changement de pile) avec les états de **Home Assistant** (pour le niveau de pile et la disponibilité).
 
 ## 📂 Structure du Projet
-Les fichiers sont situés dans le dossier `/mnt/Data/Github/unvalaible-device/`.
+Les fichiers sont situés dans le dossier `/mnt/Data/Github/monitoring-zigbee/`.
 
 - `zigbee_sensors.yaml` : Contient les capteurs template.
 - `README.md` : Ce fichier de documentation.
