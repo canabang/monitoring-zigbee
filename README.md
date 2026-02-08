@@ -36,6 +36,16 @@ Pour que la date de changement de pile s'affiche :
 3. Dans le champ **Description**, écrivez par exemple : `pile 02/02/2026`.
 4. Le capteur se mettra à jour automatiquement à la prochaine publication du bridge.
 
+## 🔄 Comment forcer une actualisation ?
+Si vous avez ajouté le bouton "Actualiser Monitoring Zigbee" (créé automatiquement), il vous suffit de cliquer dessus.
+Sinon, vous pouvez déclencher l'événement `force_zigbee_refresh` via les Outils de développement.
+
+## 📊 Bonus : Carte Dashboard
+Pour afficher un joli tableau récapitulatif sur votre Dashboard :
+1. Créez une nouvelle carte **"Manuel"**.
+2. Copiez le contenu du fichier `dashboard_card.yaml`.
+3. Vous aurez un tableau avec statut, batterie colorée et date de maintenance.
+
 ## 🚀 Prochaines Étapes
 - [ ] Créer une automatisation déclenchée par `sensor.zigbee_battery_alerts` pour envoyer une notification via K-2SO.
 - [ ] Ajouter une carte sur le Dashboard pour visualiser la liste `alert_devices`.

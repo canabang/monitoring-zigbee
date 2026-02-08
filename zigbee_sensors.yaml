@@ -6,8 +6,8 @@
 - trigger:
     - platform: mqtt
       topic: zigbee2mqtt02/bridge/devices
-    - platform: event
-      event_type: "force_zigbee_refresh"
+    - platform: state
+      entity_id: button.actualiser_monitoring_zigbee
   sensor:
     - name: "Z2M Battery Devices"
       unique_id: z2m_battery_devices
@@ -36,16 +36,25 @@
             {# Préparation du nom pour la recherche d'entité (en minuscule pour éviter les fautes de frappe) #}
             {% set search_name = d.friendly_name | lower %}
             
-            {# STRATÉGIE DE RECHERCHE D'ENTITÉ (MATCHING) #}
+            {# STRATÉGIE DE RECHERCHE D'ENTITÉ (MATCHING) AMÉLIORÉE #}
             
-            {# Essai 1 : Recherche d'un capteur de batterie dont l'ID contient le nom de l'appareil #}
+            {# Essai 1 : Priorité absolue si l'entité finit par "_battery" (standard Z2M) #}
             {% set batt_entity = states.sensor 
               | selectattr('attributes.device_class', 'defined') 
               | selectattr('attributes.device_class', 'eq', 'battery')
-              | selectattr('entity_id', 'search', search_name)
+              | selectattr('entity_id', 'search', search_name ~ '_battery$')
               | first | default(none) %}
+
+            {# Essai 2 : Si échec, recherche large dans l'ID #}
+            {% if batt_entity is none %}
+              {% set batt_entity = states.sensor 
+                | selectattr('attributes.device_class', 'defined') 
+                | selectattr('attributes.device_class', 'eq', 'battery')
+                | selectattr('entity_id', 'search', search_name)
+                | first | default(none) %}
+            {% endif %}
             
-            {# Essai 2 : Si échec, recherche par le friendly_name Home Assistant (plus large) #}
+            {# Essai 3 : Si échec, recherche par le friendly_name Home Assistant #}
             {% if batt_entity is none %}
               {% set batt_entity = states.sensor 
                 | selectattr('attributes.device_class', 'defined') 
@@ -55,8 +64,7 @@
                 | first | default(none) %}
             {% endif %}
 
-            {# Essai 3 : Recherche de n'importe quelle entité liée à ce nom pour déterminer le statut Online/Offline #}
-            {# (Certains boutons n'ont pas de capteur de batterie permanent mais ont un sensor d'action) #}
+            {# Essai 4 : Recherche de n'importe quelle entité liée à ce nom pour le statut Online/Offline #}
             {% if batt_entity is none %}
                {% set any_entity = states.sensor 
                  | selectattr('entity_id', 'search', search_name)
@@ -106,3 +114,10 @@
             {% endif %}
           {% endfor %}
           {{ list.items }}
+
+- button:
+  - name: "Actualiser Monitoring Zigbee"
+    unique_id: force_zigbee_refresh_btn
+    icon: mdi:refresh
+    press:
+      - delay: "00:00:01"
