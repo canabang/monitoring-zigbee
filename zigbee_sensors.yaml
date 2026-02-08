@@ -17,6 +17,7 @@
         {{ devices | selectattr('power_source', 'defined') | selectattr('power_source', 'eq', 'Battery') | list | length }}
       icon: mdi:battery-check
       attributes:
+        last_check: "{{ now().isoformat() }}"
         # Stockage de la liste brute pour permettre le refresh manuel sans MQTT
         raw_devices: >
           {{ trigger.payload | from_json if trigger.platform == 'mqtt' else state_attr('sensor.z2m_battery_devices', 'raw_devices') | default([]) }}
