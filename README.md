@@ -150,7 +150,7 @@ Cette carte regroupe **Batteries + Réseau + Bouton Actualiser** en une seule gr
 4. Collez l'intégralité du contenu de `dashboard_unified_grid.yaml`.
 
 
-![Démonstration du Dashboard Unifié](/mnt/Data/Github/monitoring-zigbee/dashboard_unified_grid.gif)
+![Démonstration du Dashboard Unifié](dashboard_unified_grid.gif)
 
 > [!NOTE]
 > Les anciennes cartes séparées (`dashboard_card.yaml`, `dashboard_network_card.yaml`, etc.) ont été déplacées dans le dossier `archive/` pour clarté.
