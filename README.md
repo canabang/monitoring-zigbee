@@ -8,7 +8,43 @@ Les fichiers sont situés dans le dossier `/mnt/Data/Github/monitoring-zigbee/`.
 - `zigbee_sensors.yaml` : Contient les capteurs template.
 - `README.md` : Ce fichier de documentation.
 
-## 🛠️ Fonctionnement Technique
+## 🛠️ Installation & Configuration
+
+Pour que Home Assistant prenne en compte ce fichier, vous devez l'ajouter à votre configuration. Choisissez **UNE SEULE** des 3 méthodes ci-dessous selon votre architecture actuelle.
+
+### Méthode 1 : Tout dans `configuration.yaml` (Débutant)
+Si vous n'utilisez pas de fichiers séparés, copiez le contenu de `zigbee_sensors.yaml` directement dans `configuration.yaml` sous la clé `template:`.
+⚠️ **Attention à l'indentation** : Vous devez ajouter 2 espaces au début de chaque ligne collée.
+```yaml
+template:
+  - trigger: ...  <-- Notez le décalage
+    platform: mqtt
+    ...
+```
+
+### Méthode 2 : Via `templates.yaml` (Intermédiaire)
+Si votre configuration ressemble à ça :
+```yaml
+template: !include templates.yaml
+```
+Copiez simplement tout le contenu de `zigbee_sensors.yaml` et collez-le à la fin de votre fichier `templates.yaml`.  
+Aucune indentation supplémentaire n'est nécessaire (respectez juste l'alignement des tirets existants).
+
+### Méthode 3 : Configuration Découpée « Merge List » (Expert)
+C'est la méthode recommandée pour garder une configuration propre. Si vous avez ceci :
+```yaml
+template: !include_dir_merge_list templates/
+```
+1.  Créez un dossier `templates/` (s'il n'existe pas).
+2.  Collez le fichier `zigbee_sensors.yaml` dans ce dossier.
+
+> **Astuce de Migration** :
+> Si vous migrez de la Méthode 2 vers la Méthode 3, vous pouvez simplement déplacer votre fichier `templates.yaml` existant vers le dossier `templates/`.
+> Vous pourrez ensuite "découper" ce gros fichier par étapes ultérieurement.
+
+Home Assistant fusionnera automatiquement tous les fichiers de ce dossier.
+
+## ⚙️ Fonctionnement Technique
 
 ### 1. Le Capteur Maître (`sensor.z2m_battery_devices`)
 Ce capteur est **déclenché par MQTT**. Il ne se met à jour que lorsque le bridge Zigbee2MQTT publie la liste de ses appareils (`zigbee2mqtt02/bridge/devices`).
@@ -52,6 +88,8 @@ Pour afficher un joli tableau récapitulatif sur votre Dashboard :
 1. Créez une nouvelle carte **"Manuel"**.
 2. Copiez le contenu du fichier `dashboard_card.yaml`.
 3. Vous aurez un tableau avec statut, batterie colorée et date de maintenance.
+
+![Aperçu du Monitoring Zigbee](dashboard_preview.png)
 
 ## 🤖 Automatisation : Rapport Journalier
 Le fichier `zigbee_report.yaml` contient une automation clé en main qui :
