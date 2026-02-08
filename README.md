@@ -4,18 +4,17 @@ Ce projet permet de surveiller l'état de santé de tous vos appareils Zigbee su
 
 ---
 
-## � Sommaire
+## 📑 Sommaire
 
 | Section | Description |
 |---------|-------------|
-| [�📂 Structure du Projet](#-structure-du-projet) | Liste des fichiers |
+| [📂 Structure du Projet](#-structure-du-projet) | Liste des fichiers |
 | [⚠️ Pré-requis MQTT](#️-pré-requis-important--topic-mqtt) | Configuration du topic |
 | [🛠️ Installation](#️-installation--configuration) | 3 méthodes d'installation |
 | [⚙️ Fonctionnement Technique](#️-fonctionnement-technique) | Explication des capteurs |
-| [📋 Dates de maintenance](#-comment-tenir-à-jour-les-dates-) | Mise à jour des piles |
-| [📊 Cartes Dashboard](#-bonus--carte-dashboard) | Affichage visuel |
-| [🔔 Automation Simplifiée](#-automation-simplifiée-zigbee_report_simpleyaml) | Notifications persistantes |
-| [🧪 Comment Tester](#-comment-tester) | Tests et debug |
+| [📊 Cartes Dashboard](#-cartes-dashboard) | Affichage visuel |
+| [🤖 Automatisation](#-automatisation--rapport-journalier) | Notifications et rapports |
+| [🧪 Comment Tester](#test-1--simuler-une-alerte-outils-de-développement--états) | Tests et debug |
 | [🔧 Compatibilité](#-compatibilité) | Corrections appliquées |
 
 ---
@@ -72,7 +71,6 @@ C'est la méthode recommandée pour garder une configuration propre et évolutiv
 **Pourquoi choisir cette méthode ?**
 - ✅ **Modularité** : Chaque fichier = une fonctionnalité (facile à activer/désactiver)
 - ✅ **Lisibilité** : Plus besoin de chercher dans un fichier monolithique
-- ✅ **Collaboration** : Copiez simplement les fichiers d'un projet GitHub
 - ✅ **Maintenance** : Mises à jour indépendantes par fichier
 
 Si vous avez ceci dans `configuration.yaml` :
@@ -165,57 +163,9 @@ Deux versions sont disponibles :
 | `zigbee_report_simple.yaml` | **Recommandé** - Notification persistante HA (aucune dépendance) |
 | `zigbee_report.yaml` | Version perso avec K-2SO, Discord et Awtrix |
 
-Voir la section [Automation Simplifiée](#-automation-simplifiée-zigbee_report_simpleyaml) pour plus de détails.
+### Version Simplifiée (`zigbee_report_simple.yaml`)
 
-ℹ️ *Assurez-vous que ce fichier est bien pris en compte par votre configuration Home Assistant.*
-
----
-
-## 📡 Carte Réseau (Bonus)
-
-Une carte spécifique pour le moniteur réseau est disponible : `dashboard_network_card.yaml`
-
-Elle affiche :
-- Les appareils **hors-ligne** (non vus depuis 25h+)
-- L'**activité récente** (les 10 derniers appareils ayant parlé)
-
-Pour l'installer, suivez la même procédure que pour `dashboard_card.yaml`.
-
----
-
-## 🧪 Templates de Debug
-
-Le fichier `debug_templates.md` contient des templates prêts à copier/coller dans **Outils de développement > Modèle** pour diagnostiquer le système :
-
-| Template | Utilité |
-|----------|---------|
-| 1. Vérification Globale | Aperçu rapide du système complet |
-| 2. Raw Devices | Vérifie l'inventaire allégé |
-| 3. Batteries | Vérifie la détection des entités |
-| 4. Moniteur Réseau | Vérifie le registre last_seen |
-| 5. Debug Appareil | Recherche un appareil spécifique |
-| 6. Alertes | Liste les alertes actives |
-
----
-
-## 🔧 Compatibilité
-
-Ce projet a été testé avec différentes configurations et inclut des corrections pour :
-
-| Correction | Description |
-|------------|-------------|
-| **Limite 16KB** | L'attribut `raw_devices` est allégé (sans icônes/bindings) |
-| **Batteries textuelles** | Les valeurs `low`/`medium`/`high` sont converties en `~10`/`~50`/`~90` |
-| **Entités sans device_class** | Recherche élargie des capteurs batterie |
-| **Noms avec espaces** | Conversion automatique `espaces → underscores` pour matcher les entity_id |
-
-
-
-## 🔔 Automation Simplifiée (`zigbee_report_simple.yaml`)
-
-Version sans dépendances externes, utilisant uniquement les **notifications persistantes** de Home Assistant.
-
-### Déclencheurs
+Utilise uniquement les **notifications persistantes** de Home Assistant.
 
 | Trigger ID | Quand ? |
 |------------|---------|
@@ -223,18 +173,11 @@ Version sans dépendances externes, utilisant uniquement les **notifications per
 | `battery_alert` | Dès qu'une batterie passe sous le seuil |
 | `network_alert` | Dès qu'un appareil devient silencieux |
 
-### Installation
-
+**Installation :**
 1. Copiez le fichier dans votre dossier `automations/` ou collez le contenu dans l'éditeur d'automatisation.
 2. Rechargez les automatisations.
 
-### Aperçu
-
 ![Notification persistante](notif.png)
-
----
-
-## 🧪 Comment Tester
 
 ### Test 1 : Simuler une alerte (Outils de développement > États)
 
