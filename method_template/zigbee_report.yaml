@@ -12,11 +12,19 @@ triggers:
   # Alerte immédiate si une batterie passe sous le seuil
   - trigger: state
     entity_id: sensor.zigbee_battery_alerts
+    not_from:
+      - "unknown"
+      - "unavailable"
+    for: "00:01:00"
     id: battery_alert
 
   # Alerte immédiate si un appareil devient offline
   - trigger: state
     entity_id: sensor.z2m_network_monitor
+    not_from:
+      - "unknown"
+      - "unavailable"
+    for: "00:01:00"
     id: network_alert
 
 conditions:

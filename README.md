@@ -23,17 +23,21 @@ Ce projet permet de surveiller l'état de santé de tous vos appareils Zigbee su
 
 ```
 monitoring-zigbee/
-├── zigbee_sensors.yaml          # Capteurs (inventaire, alertes, réseau)
-├── dashboard_unified_grid.yaml  # Carte dashboard complète (Grid)
-├── archive/                     # Anciens fichiers (cartes séparées, etc.)
-├── zigbee_report_simple.yaml    # Automation simplifiée (notification HA)
-├── zigbee_report.yaml           # Automation perso (K-2SO/Discord/Awtrix)
-├── debug_templates.md           # Templates de diagnostic
-└── README.md                    # Documentation
+├── method_package/                  # OPTION A : La Méthode "Package" (Recommandée)
+│   └── zigbee_monitoring_package.yaml # Tout-en-un (Sensors + Automation)
+│
+├── method_template/                 # OPTION B : La Méthode "Classique" (yaml séparés)
+│   ├── zigbee_sensors.yaml          # Capteurs (inventaire, alertes, réseau)
+│   ├── zigbee_report.yaml           # Automation standard (Notification HA)
+│   └── zigbee_report_perso.yaml     # Automation personnalisée (Exemple complexe)
+│
+├── dashboard_unified_grid.yaml      # Carte Dashboard (Commune aux 2 méthodes)
+├── archive/                         # Anciens fichiers
+└── README.md                        # Ce fichier
 ```
 
 ## ⚠️ Pré-requis Important : Topic MQTT
-Le fichier `zigbee_sensors.yaml` est configuré par défaut avec un topic spécifique : **`zigbee2mqtt02`**.
+Les fichiers (Package ou Template) sont configurés par défaut avec un topic spécifique : **`zigbee2mqtt02`**.
 ```yaml
 - trigger:
     - platform: mqtt
@@ -45,46 +49,30 @@ Si votre installation Zigbee2MQTT utilise le topic par défaut (`zigbee2mqtt`), 
 
 ## 🛠️ Installation & Configuration
 
-Pour que Home Assistant prenne en compte ce fichier, vous devez l'ajouter à votre configuration. Choisissez **UNE SEULE** des 3 méthodes ci-dessous selon votre architecture actuelle. Je vous conseille la méthode 3.
+Pour installer ce projet, choisissez **UNE SEULE** des 2 méthodes ci-dessous.
 
-### Méthode 1 : Tout dans `configuration.yaml` (Débutant)
-Si vous n'utilisez pas de fichiers séparés, copiez le contenu de `zigbee_sensors.yaml` directement dans `configuration.yaml` sous la clé `template:`.
-⚠️ **Attention à l'indentation** : Vous devez ajouter 2 espaces au début de chaque ligne collée.
+### 🌟 Méthode 1 : Le Package (Recommandée)
+C'est la plus simple : un seul fichier à gérer.
+
+1. Vérifiez que vous avez ceci dans `configuration.yaml` :
 ```yaml
-template:
-  - trigger: ...  <-- Notez le décalage
-    platform: mqtt
-    ...
+homeassistant:
+  packages: !include_dir_named packages
 ```
+2. Créez le dossier `/config/packages/` s'il n'existe pas.
+3. Copiez le fichier `method_package/zigbee_monitoring_package.yaml` dedans.
+4. Redémarrez Home Assistant.
 
-### Méthode 2 : Via `templates.yaml` (Intermédiaire)
-Si votre configuration ressemble à ça :
-```yaml
-template: !include templates.yaml
-```
-Copiez simplement tout le contenu de `zigbee_sensors.yaml` et collez-le à la fin de votre fichier `templates.yaml`.  
-Aucune indentation supplémentaire n'est nécessaire (respectez juste l'alignement des tirets existants).
+### ⚙️ Méthode 2 : Les Fichiers "Split" (Avancé)
+Si vous préférez séparer vos capteurs et vos automatisations (méthode classique).
 
-### Méthode 3 : Configuration Découpée « Merge List » (Recommandée)
-C'est la méthode recommandée pour garder une configuration propre et évolutive.
+**1. Les Capteurs (`zigbee_sensors.yaml`)**
+Copiez `method_template/zigbee_sensors.yaml` via votre méthode habituelle (soit dans `configuration.yaml` sous `template:`, soit dans votre dossier `templates/`).
 
-**Pourquoi choisir cette méthode ?**
-- ✅ **Modularité** : Chaque fichier = une fonctionnalité (facile à activer/désactiver)
-- ✅ **Lisibilité** : Plus besoin de chercher dans un fichier monolithique
-- ✅ **Maintenance** : Mises à jour indépendantes par fichier
+**2. L'Automatisation (`zigbee_report.yaml`)**
+Copiez le contenu de `method_template/zigbee_report.yaml` dans une nouvelle automatisation (mode YAML) ou dans votre fichier `automations.yaml`.
 
-Si vous avez ceci dans `configuration.yaml` :
-```yaml
-template: !include_dir_merge_list templates/
-```
-1. Créez un dossier `templates/` (s'il n'existe pas).
-2. Collez le fichier `zigbee_sensors.yaml` dans ce dossier.
-
-> **Astuce de Migration** :
-> Si vous migrez de la Méthode 2 vers la Méthode 3, vous pouvez simplement déplacer votre fichier `templates.yaml` existant vers le dossier `templates/`.
-> Vous pourrez ensuite "découper" ce gros fichier par étapes ultérieurement.
-
-Home Assistant fusionnera automatiquement tous les fichiers de ce dossier.
+**3. Redémarrez Home Assistant.**
 
 ## ⚙️ Fonctionnement Technique
 

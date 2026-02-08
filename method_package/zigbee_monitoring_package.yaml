@@ -1,0 +1,308 @@
+# ==============================================================================
+# MONITORING ZIGBEE 3.0 - PACKAGE TOUT-EN-UN
+# ==============================================================================
+# Version du Package : 1.0 (Basé sur la méthode V3 Centralisée)
+#
+# INSTALLATION FACILE :
+# 1. Assurez-vous d'avoir ceci dans votre configuration.yaml :
+#    homeassistant:
+#      packages: !include_dir_named packages
+#
+# 2. Copiez ce fichier (tel quel) dans le dossier /config/packages/
+#    (Créez le dossier 'packages' s'il n'existe pas)
+#
+# 3. Redémarrez Home Assistant
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. CAPTEURS (Template Sensors)
+# ------------------------------------------------------------------------------
+template:
+  - trigger:
+      # ┌─────────────────────────────────────────────────────────────────────────┐
+      # │  ⚠️  ADAPTEZ LE TOPIC MQTT CI-DESSOUS À VOTRE INSTALLATION Z2M  ⚠️     │
+      # └─────────────────────────────────────────────────────────────────────────┘
+      - platform: mqtt
+        topic: zigbee2mqtt02/bridge/devices  # Inventaire (Rare)
+      - platform: mqtt
+        topic: zigbee2mqtt02/+               # Trafic temps réel (Last Seen)
+      
+      # Rafraîchissement manuel via le bouton du package
+      - platform: state
+        entity_id: input_button.actualiser_monitoring_zigbee
+        
+    sensor:
+      - name: "Z2M Battery Devices"
+        unique_id: z2m_battery_devices
+        state: >
+          {# On compte les appareils sur batterie #}
+          {% if trigger.platform == 'mqtt' and trigger.topic.endswith('bridge/devices') %}
+            {{ trigger.payload_json | selectattr('power_source', 'eq', 'Battery') | list | length }}
+          {% else %}
+            {{ this.state }}
+          {% endif %}
+        icon: mdi:battery-check
+        attributes:
+          last_check: "{{ now().isoformat() }}"
+          
+          # --- CARNET DE BORD (Traffic Listener) ---
+          last_seen_registry: >
+            {% set registry = this.attributes.last_seen_registry | default({}) %}
+            {% if trigger.platform == 'mqtt' and not trigger.topic.endswith('bridge/devices') %}
+              {% set dev_name = trigger.topic.split('/')[1] %}
+              {% if trigger.payload_json is defined and trigger.payload_json.last_seen is defined %}
+                {{ dict(registry, **{dev_name: trigger.payload_json.last_seen}) }}
+              {% else %}
+                {{ dict(registry, **{dev_name: now().isoformat()}) }}
+              {% endif %}
+            {% else %}
+              {{ registry }}
+            {% endif %}
+
+          # --- ARBRE DES APPAREILS (Inventory) ---
+          raw_devices: >
+            {% if trigger.platform == 'mqtt' and trigger.topic.endswith('bridge/devices') %}
+              {% set full_list = trigger.payload_json %}
+              {% set ns = namespace(light=[]) %}
+              {% for d in full_list %}
+                {% set ns.light = ns.light + [{
+                  'friendly_name': d.friendly_name,
+                  'ieee_address': d.ieee_address | default(''),
+                  'type': d.type | default('Unknown'),
+                  'power_source': d.power_source | default('Unknown'),
+                  'description': d.description | default('')
+                }] %}
+              {% endfor %}
+              {{ ns.light }}
+            {% else %}
+              {{ this.attributes.raw_devices | default([]) }}
+            {% endif %}
+          
+          # --- LISTE ENRICHIE (Home Assistant Entity Matching) ---
+          devices: >
+            {% set raw = this.attributes.raw_devices | default([]) %}
+            {% set devices = raw | selectattr('power_source', 'eq', 'Battery') | list %}
+            {% set enriched = namespace(list=[]) %}
+            
+            {% for d in devices %}
+              {# Extraction date maintenance #}
+              {% set desc = d.description | default('') %}
+              {% set m_date = desc if ('pile' in desc or '/' in desc) else 'jamais' %}
+              
+              {# Matching intelligent #}
+              {% set search_name = d.friendly_name | lower | replace(' ', '_') %}
+              {% set batt_entity = states.sensor 
+                | selectattr('entity_id', 'search', search_name ~ '_battery')
+                | first | default(none) %}
+
+              {# Valeur batterie #}
+              {% set batt_val = '?' %}
+              {% if batt_entity is not none %}
+                 {% set batt_val = batt_entity.state %}
+              {% endif %}
+
+              {% set enriched.list = enriched.list + [{
+                'name': d.friendly_name,
+                'status': 'offline' if (batt_entity is none or batt_entity.state in ['unavailable', 'unknown']) else 'online',
+                'battery': batt_val,
+                'maintenance': m_date
+              }] %}
+            {% endfor %}
+            {{ enriched.list | sort(attribute='name') }}
+
+  # --- CAPTEUR D'ALERTE (BATTERIES) ---
+  - sensor:
+      - name: "Zigbee Battery Alerts"
+        unique_id: zigbee_battery_alerts
+        state: >
+          {# Ce capteur compte les devices nécessitant une attention (Offline, Pile < 15% ou Inconnue) #}
+          {# FIX V5: Gestion des valeurs ~90/~50/~10 pour batteries textuelles #}
+          {% set devices = state_attr('sensor.z2m_battery_devices', 'devices') | default([]) %}
+          {% set alerts = namespace(count=0) %}
+          {% for d in devices %}
+            {% set batt_str = d.battery | string %}
+            {% set battery_val = batt_str | replace('~', '') | float(-1) if batt_str != '?' else -1 %}
+            {% if d.status == 'offline' or d.battery == '?' or (battery_val != -1 and battery_val < 15) %}
+              {% set alerts.count = alerts.count + 1 %}
+            {% endif %}
+          {% endfor %}
+          {{ alerts.count }}
+        icon: >
+          {{ 'mdi:alert-circle' if states('sensor.zigbee_battery_alerts') | int(0) > 0 else 'mdi:check-circle' }}
+        attributes:
+          # Liste filtrée pour l'automation et le dashboard
+          # FIX V5: Gestion des valeurs ~90/~50/~10
+          alert_devices: >
+            {% set devices = state_attr('sensor.z2m_battery_devices', 'devices') | default([]) %}
+            {% set list = namespace(items=[]) %}
+            {% for d in devices %}
+              {% set batt_str = d.battery | string %}
+              {% set battery_val = batt_str | replace('~', '') | float(-1) if batt_str != '?' else -1 %}
+              {% if d.status == 'offline' or d.battery == '?' or (battery_val != -1 and battery_val < 15) %}
+                {% set list.items = list.items + [d] %}
+              {% endif %}
+            {% endfor %}
+            {{ list.items }}
+
+  # --- CAPTEUR SURVEILLANCE RÉSEAU ---
+  - trigger:
+      - platform: time_pattern
+        minutes: "/15"
+      - platform: state
+        entity_id: input_button.actualiser_monitoring_zigbee_pkg
+    sensor:
+      - name: "Z2M Network Monitor"
+        unique_id: z2m_network_monitor
+        icon: mdi:zigbee-status
+        state: "{{ this.attributes.offline_list | count if this.attributes.offline_list is defined else 0 }}"
+        attributes:
+          last_check: "{{ now().isoformat() }}"
+          offline_list: >
+            {% set threshold_hours = 25 %} 
+            {% set registry = state_attr('sensor.z2m_battery_devices', 'last_seen_registry') | default({}) %}
+            {% set raw_devices = state_attr('sensor.z2m_battery_devices', 'raw_devices') %}
+            {% set ns = namespace(dead=[]) %}
+            
+            {% if raw_devices %}
+              {% for d in raw_devices %}
+                {% if d.type != 'Coordinator' %}
+                  {% set name = d.friendly_name %}
+                  {% set last_seen = registry.get(name) %}
+                  {% if last_seen %}
+                    {% set delta = (as_timestamp(now()) - as_timestamp(last_seen)) / 3600 %}
+                    {% if delta > threshold_hours %}
+                      {% set ns.dead = ns.dead + [{"name": name, "hours_ago": delta | round(1)}] %}
+                    {% endif %}
+                  {% endif %}
+                {% endif %}
+              {% endfor %}
+            {% endif %}
+            {{ ns.dead | sort(attribute='hours_ago', reverse=True) }}
+
+# ------------------------------------------------------------------------------
+# 2. BOUTON (Input Button)
+# ------------------------------------------------------------------------------
+input_button:
+  actualiser_monitoring_zigbee:
+    name: Actualiser Monitoring Zigbee
+    icon: mdi:refresh
+
+# ------------------------------------------------------------------------------
+# 3. AUTOMATISATION (Automation)
+# ------------------------------------------------------------------------------
+automation:
+  - alias: "📊 Zigbee : Rapport Journalier"
+    id: zigbee_daily_report_v3
+    description: "Version simplifiée : notification persistante HA uniquement. Envoie un bilan des piles ET des appareils offline (réseau) chaque soir à 20h."
+    mode: single
+    
+    trigger:
+      # Rapport programmé
+      - platform: time
+        at: "20:00:00"
+        id: scheduled
+
+      # Alerte immédiate si une batterie passe sous le seuil
+      - platform: state
+        entity_id: sensor.zigbee_battery_alerts
+        not_from:
+          - "unknown"
+          - "unavailable"
+        for: "00:01:00"
+        id: battery_alert
+
+      # Alerte immédiate si un appareil devient offline
+      - platform: state
+        entity_id: sensor.z2m_network_monitor
+        not_from:
+          - "unknown"
+          - "unavailable"
+        for: "00:01:00"
+        id: network_alert
+
+    condition:
+      # Pour les triggers temps réel : ne pas déclencher si state = 0
+      - condition: or
+        conditions:
+          - condition: trigger
+            id: scheduled
+          - condition: template
+            value_template: >
+              {{ states('sensor.zigbee_battery_alerts') | int(0) > 0 or
+                 states('sensor.z2m_network_monitor') | int(0) > 0 }}
+
+    action:
+      # Variables communes
+      - variables:
+          battery_count: "{{ states('sensor.zigbee_battery_alerts') | int(0) }}"
+          network_count: "{{ states('sensor.z2m_network_monitor') | int(0) }}"
+          battery_devices: "{{ states('sensor.z2m_battery_devices') | int(0) }}"
+          total_zigbee: "{{ state_attr('sensor.z2m_battery_devices', 'raw_devices') | default([]) | length }}"
+          has_alerts: "{{ battery_count > 0 or network_count > 0 }}"
+
+      # Choix selon présence d'alertes ou non
+      - choose:
+          # CAS 1 : Il y a des alertes
+          - conditions:
+              - condition: template
+                value_template: "{{ has_alerts }}"
+            sequence:
+              - variables:
+                  # Liste des alertes batteries
+                  battery_list: >
+                    {% set devices = state_attr('sensor.zigbee_battery_alerts', 'alert_devices') | default([]) %}
+                    {% set report = namespace(text="") %}
+                    {% for d in devices %}
+                      {% set info = "" %}
+                      {% if d.status == 'offline' %}
+                        {% set info = "🔴 HORS-LIGNE" %}
+                      {% elif d.battery == '?' %}
+                        {% set info = "❓ BATTERIE INCONNUE" %}
+                      {% else %}
+                        {% set info = "🪫 BATTERIE " ~ d.battery ~ "%" %}
+                      {% endif %}
+                      {% set report.text = report.text ~ "• " ~ d.name ~ " : " ~ info ~ " (Maintenance : " ~ d.maintenance ~ ")\n" %}
+                    {% endfor %}
+                    {{ report.text }}
+                  
+                  # Liste des appareils offline (réseau)
+                  network_list: >
+                    {% set devices = state_attr('sensor.z2m_network_monitor', 'offline_list') | default([]) %}
+                    {% set report = namespace(text="") %}
+                    {% for d in devices %}
+                      {% set report.text = report.text ~ "• " ~ d.name ~ " : 📡 SILENCIEUX depuis " ~ d.hours_ago | round(0) ~ "h\n" %}
+                    {% endfor %}
+                    {{ report.text }}
+                  
+                  # Message complet formaté
+                  message: |
+                    📊 Réseau : {{ total_zigbee }} appareils Zigbee ({{ battery_devices }} sur batterie)
+
+                    ⚠️ BATTERIES ({{ battery_count }} alerte{{ 's' if battery_count > 1 else '' }})
+                    {{ battery_list if battery_count > 0 else '✅ Aucune alerte' }}
+
+                    📡 RÉSEAU ({{ network_count }} silencieux)
+                    {{ network_list if network_count > 0 else '✅ Tous les appareils communiquent' }}
+
+              - service: persistent_notification.create
+                data:
+                  title: "🚨 Rapport Zigbee - {{ battery_count + network_count }} alerte(s)"
+                  message: "{{ message }}"
+                  notification_id: "zigbee_report_{{ now().strftime('%Y%m%d_%H%M%S') }}"
+
+        # CAS 2 : Tout va bien !
+        default:
+          - variables:
+              message: |
+                ✅ Tous les systèmes sont opérationnels !
+                
+                📊 Réseau : {{ total_zigbee }} appareils Zigbee
+                • 🔋 {{ battery_devices }} sur batterie surveillés
+                • ✅ 0 alerte batterie
+                • 📡 0 appareil silencieux
+
+          - service: persistent_notification.create
+            data:
+              title: "✅ Rapport Zigbee - Tout OK"
+              message: "{{ message }}"
+              notification_id: "zigbee_report_{{ now().strftime('%Y%m%d_%H%M%S') }}"
