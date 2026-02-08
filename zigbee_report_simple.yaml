@@ -1,0 +1,109 @@
+alias: "📊 Zigbee : Rapport Journalier (Simplifié)"
+description: >-
+  Version simplifiée : notification persistante HA uniquement.
+  Envoie un bilan des piles ET des appareils offline (réseau) chaque soir à 20h.
+
+triggers:
+  # Rapport programmé
+  - trigger: time
+    at: "20:00:00"
+    id: scheduled
+
+  # Alerte immédiate si une batterie passe sous le seuil
+  - trigger: state
+    entity_id: sensor.zigbee_battery_alerts
+    id: battery_alert
+
+  # Alerte immédiate si un appareil devient offline
+  - trigger: state
+    entity_id: sensor.z2m_network_monitor
+    id: network_alert
+
+conditions:
+  # Pour les triggers temps réel : ne pas déclencher si state = 0
+  - condition: or
+    conditions:
+      - condition: trigger
+        id: scheduled
+      - condition: template
+        value_template: >
+          {{ states('sensor.zigbee_battery_alerts') | int(0) > 0 or
+             states('sensor.z2m_network_monitor') | int(0) > 0 }}
+
+actions:
+  # Variables communes
+  - variables:
+      battery_count: "{{ states('sensor.zigbee_battery_alerts') | int(0) }}"
+      network_count: "{{ states('sensor.z2m_network_monitor') | int(0) }}"
+      battery_devices: "{{ states('sensor.z2m_battery_devices') | int(0) }}"
+      total_zigbee: "{{ state_attr('sensor.z2m_battery_devices', 'raw_devices') | default([]) | length }}"
+      has_alerts: "{{ battery_count > 0 or network_count > 0 }}"
+
+  # Choix selon présence d'alertes ou non
+  - choose:
+      # CAS 1 : Il y a des alertes
+      - conditions:
+          - condition: template
+            value_template: "{{ has_alerts }}"
+        sequence:
+          - variables:
+              # Liste des alertes batteries
+              battery_list: >
+                {% set devices = state_attr('sensor.zigbee_battery_alerts', 'alert_devices') | default([]) %}
+                {% set report = namespace(text="") %}
+                {% for d in devices %}
+                  {% set info = "" %}
+                  {% if d.status == 'offline' %}
+                    {% set info = "🔴 HORS-LIGNE" %}
+                  {% elif d.battery == '?' %}
+                    {% set info = "❓ BATTERIE INCONNUE" %}
+                  {% else %}
+                    {% set info = "🪫 BATTERIE " ~ d.battery ~ "%" %}
+                  {% endif %}
+                  {% set report.text = report.text ~ "• " ~ d.name ~ " : " ~ info ~ " (Maintenance : " ~ d.maintenance ~ ")\n" %}
+                {% endfor %}
+                {{ report.text }}
+              
+              # Liste des appareils offline (réseau)
+              network_list: >
+                {% set devices = state_attr('sensor.z2m_network_monitor', 'offline_list') | default([]) %}
+                {% set report = namespace(text="") %}
+                {% for d in devices %}
+                  {% set report.text = report.text ~ "• " ~ d.name ~ " : 📡 SILENCIEUX depuis " ~ d.hours_ago | round(0) ~ "h\n" %}
+                {% endfor %}
+                {{ report.text }}
+              
+              # Message complet formaté
+              message: |
+                � Réseau : {{ total_zigbee }} appareils Zigbee ({{ battery_devices }} sur batterie)
+
+                �🔋 BATTERIES ({{ battery_count }} alerte{{ 's' if battery_count > 1 else '' }})
+                {{ battery_list if battery_count > 0 else '✅ Aucune alerte' }}
+
+                📡 RÉSEAU ({{ network_count }} silencieux)
+                {{ network_list if network_count > 0 else '✅ Tous les appareils communiquent' }}
+
+          - action: persistent_notification.create
+            data:
+              title: "🚨 Rapport Zigbee - {{ battery_count + network_count }} alerte(s)"
+              message: "{{ message }}"
+              notification_id: "zigbee_report_{{ now().strftime('%Y%m%d_%H%M%S') }}"
+
+    # CAS 2 : Tout va bien !
+    default:
+      - variables:
+          message: |
+            ✅ Tous les systèmes sont opérationnels !
+            
+            📊 Réseau : {{ total_zigbee }} appareils Zigbee
+            • 🔋 {{ battery_devices }} sur batterie surveillés
+            • ✅ 0 alerte batterie
+            • 📡 0 appareil silencieux
+
+      - action: persistent_notification.create
+        data:
+          title: "✅ Rapport Zigbee - Tout OK"
+          message: "{{ message }}"
+          notification_id: "zigbee_report_{{ now().strftime('%Y%m%d_%H%M%S') }}"
+
+mode: single
