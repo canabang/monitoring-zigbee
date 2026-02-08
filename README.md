@@ -37,8 +37,15 @@ Pour que la date de changement de pile s'affiche :
 4. Le capteur se mettra à jour automatiquement à la prochaine publication du bridge.
 
 ## 🔄 Comment forcer une actualisation ?
-Si vous avez ajouté le bouton "Actualiser Monitoring Zigbee" (créé automatiquement), il vous suffit de cliquer dessus.
-Sinon, vous pouvez déclencher l'événement `force_zigbee_refresh` via les Outils de développement.
+Un bouton **"Actualiser Monitoring Zigbee"** est créé automatiquement via le fichier `zigbee_sensors.yaml`.
+Il est intégré directement dans la carte Dashboard fournie (voir section suivante).
+
+En cliquant dessus, vous forcez le recalcul immédiat des capteurs. Vous pouvez vérifier l'action en observant l'attribut `last_check` du capteur `sensor.z2m_battery_devices` qui change à chaque appui.
+
+> [!NOTE]
+> **Après un redémarrage de Home Assistant**, il est normal que beaucoup d'appareils apparaissent en "INCONNU" ou "0%" pendant quelques minutes.
+> C'est le temps que Home Assistant rétablisse la connexion avec tous les capteurs (qui peuvent être en veille).
+> Une fois le système stabilisé, un clic sur le bouton "Actualiser" remettra tout d'équerre.
 
 ## 📊 Bonus : Carte Dashboard
 Pour afficher un joli tableau récapitulatif sur votre Dashboard :
@@ -46,6 +53,11 @@ Pour afficher un joli tableau récapitulatif sur votre Dashboard :
 2. Copiez le contenu du fichier `dashboard_card.yaml`.
 3. Vous aurez un tableau avec statut, batterie colorée et date de maintenance.
 
-## 🚀 Prochaines Étapes
-- [ ] Créer une automatisation déclenchée par `sensor.zigbee_battery_alerts` pour envoyer une notification via K-2SO.
-- [ ] Ajouter une carte sur le Dashboard pour visualiser la liste `alert_devices`.
+## 🤖 Automatisation : Rapport Journalier
+Le fichier `zigbee_report.yaml` contient une automation clé en main qui :
+1.  Se déclenche chaque soir (ex: 20h, configurable dans le fichier).
+2.  Vérifie s'il y a des alertes en cours (`sensor.zigbee_battery_alerts > 0`).
+3.  Génère un message sarcastique via le script **K-2SO**.
+4.  Envoie une notification **Discord** détaillée (avec la liste des appareils) et une alerte visuelle sur **Awtrix**.
+
+ℹ️ *Assurez-vous que ce fichier est bien pris en compte par votre configuration Home Assistant.*
