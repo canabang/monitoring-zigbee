@@ -3,9 +3,13 @@ cards:
   - type: markdown
     title: 🔋 État des Piles Zigbee
     icon: mdi:battery-check
-    content: |
+    content: >
+      *Dernière vérification : {{ state_attr('sensor.z2m_battery_devices', 'last_check') | as_timestamp | timestamp_custom('%d/%m/%Y %H:%M') }}*
+
       {% set devices = state_attr('sensor.z2m_battery_devices', 'devices') %}
+
       {% set ns = namespace(alerts=[], ok=[]) %}
+
       {% for d in devices %}
         {% set bat_val = d.battery | float(-1) if d.battery != '?' else -1 %}
         {% if d.status == 'offline' or d.battery == '?' or (bat_val != -1 and bat_val < 15) %}
@@ -15,30 +19,46 @@ cards:
         {% endif %}
       {% endfor %}
 
+
       {% if ns.alerts | length > 0 %}
+
       ### 🚨 À Vérifier ({{ ns.alerts | length }})
+
       | Appareil | Problème | Batterie | Date |
+
       | :--- | :--- | :---: | :--- |
+
       {% for d in ns.alerts | sort(attribute='bat_val') -%}
-      | **{{ d.name }}** | {{ '🔴 HORS-LIGNE' if d.status == 'offline' else '⚠️ FAIBLE' if d.bat_val != -1 else '❓ INCONNU' }} | {{ d.bat_display }}% | {{ d.maint }} |
+
+      | **{{ d.name }}** | {{ '🔴 HORS-LIGNE' if d.status == 'offline' else '⚠️
+      FAIBLE' if d.bat_val != -1 else '❓ INCONNU' }} | {{ d.bat_display }}% | {{
+      d.maint }} |
+
       {% endfor %}
+
       {% endif %}
 
+
       ### ✅ Opérationnels ({{ ns.ok | length }})
+
       | Appareil | Batterie | Maintenance |
+
       | :--- | :---: | :--- |
+
       {% for d in ns.ok | sort(attribute='bat_val') -%}
+
       | {{ d.name }} | 🔋 {{ d.bat_display }}% | {{ d.maint }} |
+
       {% endfor %}
-  
-  - type: button
+  - show_name: true
+    show_icon: false
+    type: button
     entity: button.actualiser_monitoring_zigbee
     name: Forcer l'Actualisation
     icon: mdi:refresh
-    show_name: true
-    show_icon: true
     tap_action:
       action: call-service
       service: button.press
       target:
         entity_id: button.actualiser_monitoring_zigbee
+    show_state: true
