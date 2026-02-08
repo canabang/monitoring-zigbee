@@ -63,6 +63,12 @@ homeassistant:
 3. Copiez le fichier `method_package/zigbee_monitoring_package.yaml` dedans.
 4. Redémarrez Home Assistant.
 
+> [!WARNING]
+> **Limitation de l'édition** : Les automatisations incluses dans un package sont **en lecture seule** dans l'interface graphique de Home Assistant.
+> Si vous voulez modifier l'heure du rapport ou le message, vous devrez éditer directement le fichier `method_package/zigbee_monitoring_package.yaml`.
+> 
+> **Astuce** : Vous pouvez cliquer sur le bouton **"Migrer"** (dans le bandeau jaune) pour déplacer cette automatisation vers `automations.yaml`. Cela la rendra modifiable via l'interface, mais elle ne sera plus liée au fichier du package.
+
 ### ⚙️ Méthode 2 : Les Fichiers "Split" (Avancé)
 Si vous préférez séparer vos capteurs et vos automatisations (méthode classique).
 
