@@ -54,7 +54,7 @@ actions:
       debug_info: >
         ---
         🔍 **DEBUG** : `{{ trigger.id if trigger is defined else 'N/A' }}`
-        {% if trigger is defined and trigger.entity_id is defined %}
+        {% if trigger is defined and trigger.platform == 'state' %}
         `{{ trigger.entity_id }}` : {{ trigger.from_state.state }} ➡️ {{ trigger.to_state.state }}
         {% endif %}
 
@@ -128,8 +128,6 @@ actions:
                     **📡 Réseau ({{ network_count }} silencieux) :**
                     {{ network_list if network_count > 0 else '✅ Tous les appareils communiquent' }}
 
-                    {{ network_list if network_count > 0 else '✅ Tous les appareils communiquent' }}
-
               - action: script.awtrix_dynamique_customapp_and_notify
                 data:
                   message: "Zigbee: {{ battery_count }} piles, {{ network_count }} offline"
@@ -161,8 +159,6 @@ actions:
                 **📊 Réseau : {{ total_zigbee }} appareils Zigbee**
                 • 🔋 **{{ battery_devices }}** sur batterie surveillés
                 • ✅ **0** alerte batterie
-                • 📡 **0** appareil silencieux
-
                 • 📡 **0** appareil silencieux
 
           - action: script.awtrix_dynamique_customapp_and_notify
