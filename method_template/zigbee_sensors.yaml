@@ -57,6 +57,21 @@
             {{ registry }}
           {% endif %}
 
+        # --- QUALITÉ DU SIGNAL (LQI Listener) ---
+        # Stocke le LQI du dernier message reçu
+        lqi_registry: >
+          {% set registry = this.attributes.lqi_registry | default({}) %}
+          {% if trigger.id == 'traffic' %}
+            {% set dev_name = trigger.topic.split('/')[1] %}
+            {% if trigger.payload_json is defined and trigger.payload_json.linkquality is defined %}
+              {{ dict(registry, **{dev_name: trigger.payload_json.linkquality}) }}
+            {% else %}
+              {{ registry }}
+            {% endif %}
+          {% else %}
+            {{ registry }}
+          {% endif %}
+
         # --- ARBRE DES APPAREILS (Inventory) ---
         # FIX V4: Liste ALLÉGÉE (sans icônes/bindings/clusters) pour éviter limite 16KB
         raw_devices: >
@@ -255,6 +270,44 @@
 
         offline_count: >
           {{ this.attributes.offline_list | count if this.attributes.offline_list is defined else 0 }}
+
+# --- CAPTEUR QUALITÉ RÉSEAU (LQI) ---
+# Analyse le LQI Registry pour repérer les signaux faibles
+- trigger:
+    - platform: time_pattern
+      minutes: "/15"
+    - platform: state
+      entity_id: button.actualiser_monitoring_zigbee
+  
+  sensor:
+    - name: "Z2M LQI Monitor"
+      unique_id: z2m_lqi_monitor
+      icon: mdi:signal
+      state: >
+        {{ this.attributes.low_lqi_count | default(0) }}
+      attributes:
+        last_check: "{{ now().isoformat() }}"
+        low_lqi_list: >
+          {# Seuil LQI configurable : 30 par défaut #}
+          {# Une valeur < 30 commence à être instable #}
+          {% set threshold_lqi = 30 %} 
+          {% set master = 'sensor.z2m_battery_devices' %}
+          {% set registry = state_attr(master, 'lqi_registry') | default({}) %}
+          {% set ns = namespace(weak=[]) %}
+          
+          {% for name, lqi in registry.items() %}
+             {% if lqi < threshold_lqi %}
+                {% set ns.weak = ns.weak + [{
+                   "name": name, 
+                   "lqi": lqi
+                }] %}
+             {% endif %}
+          {% endfor %}
+          {# Tri par LQI Croissant (les pires en premier) #}
+          {{ ns.weak | sort(attribute='lqi') }}
+
+        low_lqi_count: >
+          {{ this.attributes.low_lqi_list | count if this.attributes.low_lqi_list is defined else 0 }}
 
 # --- BOUTON DE RAFRAÎCHISSEMENT ---
 - button:
