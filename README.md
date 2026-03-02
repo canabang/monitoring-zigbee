@@ -94,7 +94,7 @@ Ce capteur écoute **deux sources MQTT** :
     - `raw_devices` : Données brutes de l'inventaire Z2M.
 
 ### 2. Le Capteur Réseau (`sensor.z2m_network_monitor`)
-Ce capteur analyse `last_seen_registry` pour détecter les appareils "silencieux" depuis trop longtemps.
+Ce capteur analyse `last_seen_registry` pour détecter les appareils "silencieux" depuis trop longtemps (par défaut : **> 12h**). Les appareils signalés indisponibles par défaut dans Home Assistant (`unavailable`) y sont également inclus.
 
 > [!NOTE]
 > **Pourquoi un trigger `time_pattern` (toutes les 15 min) ?**
@@ -113,9 +113,10 @@ Ce capteur analyse la qualité du signal (LQI - Link Quality Indication) de chaq
 Ce capteur filtre la liste du capteur maître pour ne sortir que les appareils nécessitant une intervention humaine.
 
 **Critères d'alerte :**
-- Appareil marqué `offline`.
 - Niveau de batterie `< 15%`.
 - Niveau de batterie inconnu (`?`).
+
+*(Note : Les appareils signalés hors-ligne ou silencieux ne sont plus comptabilisés ici, ils ont leur propre alerte réseau dédiée).*
 
 ## 📋 Comment tenir à jour les dates ?
 Pour que la date de changement de pile s'affiche :
@@ -172,8 +173,10 @@ Utilise uniquement les **notifications persistantes** de Home Assistant.
 | Trigger ID | Quand ? |
 |------------|---------|
 | `scheduled` | Tous les jours à 20h00 |
-| `battery_alert` | Dès qu'une batterie passe sous le seuil |
-| `network_alert` | Dès qu'un appareil devient silencieux |
+| `loop_alert` | Toutes les 2 heures (Uniquement s'il y a une panne réseau) |
+| `ha_start` | Au démarrage de HA (Avec 5 minutes d'attente pour l'initialisation du réseau) |
+| `battery_alert` | Dès qu'une batterie passe sous le seuil critique (<15%) |
+| `network_alert` | Dès qu'un appareil devient silencieux (>12h) |
 
 **Installation :**
 1. Copiez le fichier dans votre dossier `automations/` ou collez le contenu dans l'éditeur d'automatisation.
