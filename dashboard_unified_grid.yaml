@@ -29,13 +29,15 @@ cards:
           {% set devices = state_attr('sensor.z2m_battery_devices', 'devices')
           %} {% set ns = namespace(alerts=[], ok=[]) %} {% for d in devices if
           devices %}
-            {% set bat_str = d.battery | string %}
-            {% set is_unknown = bat_str in ['?', 'unknown', 'unavailable', 'None'] %}
-            {% set bat_val = bat_str | replace('~', '') | float(999) if not is_unknown else 999 %}
-            {% if d.status == 'offline' or is_unknown or (bat_val < 15) %}
-              {% set ns.alerts = ns.alerts + [{'name': d.name, 'bat_display': d.battery if not is_unknown else '?', 'bat_val': bat_val, 'status': d.status, 'maint': d.maintenance}] %}
-            {% else %}
-              {% set ns.ok = ns.ok + [{'name': d.name, 'bat_display': d.battery, 'bat_val': bat_val, 'status': d.status, 'maint': d.maintenance}] %}
+            {% if d.status == 'online' %}
+              {% set bat_str = d.battery | string %}
+              {% set is_unknown = bat_str in ['?', 'unknown', 'unavailable', 'None'] %}
+              {% set bat_val = bat_str | replace('~', '') | float(999) if not is_unknown else 999 %}
+              {% if is_unknown or (bat_val < 15) %}
+                {% set ns.alerts = ns.alerts + [{'name': d.name, 'bat_display': d.battery if not is_unknown else '?', 'bat_val': bat_val, 'status': d.status, 'maint': d.maintenance}] %}
+              {% else %}
+                {% set ns.ok = ns.ok + [{'name': d.name, 'bat_display': d.battery, 'bat_val': bat_val, 'status': d.status, 'maint': d.maintenance}] %}
+              {% endif %}
             {% endif %}
           {% endfor %}
 
@@ -49,8 +51,7 @@ cards:
 
           {% for d in ns.alerts | sort(attribute='bat_val') -%}
 
-          | **{{ d.name }}** | {{ '🔴 HORS-LIGNE' if d.status == 'offline' else
-          '⚠️ FAIBLE' if d.bat_val < 15 else '❓ INCONNU' }} | {{ d.bat_display
+          | **{{ d.name }}** | {{ '⚠️ FAIBLE' if d.bat_val < 15 else '❓ INCONNU' }} | {{ d.bat_display
           }}% | {{ d.maint }} |
 
           {% endfor %}
@@ -93,8 +94,7 @@ cards:
 
           {% for d in offline | sort(attribute='hours_ago', reverse=true) -%}
 
-          | **{{ d.name }}** | {{ d.last_seen | as_timestamp |
-          timestamp_custom('%d/%m %H:%M') }} | {{ d.hours_ago | round(0) }}h |
+          | **{{ d.name }}** | {{ (d.last_seen | as_timestamp | timestamp_custom('%d/%m %H:%M')) if d.last_seen != 'Inconnu' else 'Inconnu' }} | {{ (d.hours_ago | round(0) | string ~ 'h') if d.hours_ago != 'N/A' else 'Inconnu' }} |
 
           {% endfor %}
 

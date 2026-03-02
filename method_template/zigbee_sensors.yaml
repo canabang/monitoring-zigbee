@@ -200,7 +200,7 @@
         {% for d in devices %}
           {% set batt_str = d.battery | string %}
           {% set battery_val = batt_str | replace('~', '') | float(-1) if batt_str != '?' else -1 %}
-          {% if d.status == 'offline' or d.battery == '?' or (battery_val != -1 and battery_val < 15) %}
+          {% if d.status == 'online' and (d.battery == '?' or (battery_val != -1 and battery_val < 15)) %}
             {% set alerts.count = alerts.count + 1 %}
           {% endif %}
         {% endfor %}
@@ -216,7 +216,7 @@
           {% for d in devices %}
             {% set batt_str = d.battery | string %}
             {% set battery_val = batt_str | replace('~', '') | float(-1) if batt_str != '?' else -1 %}
-            {% if d.status == 'offline' or d.battery == '?' or (battery_val != -1 and battery_val < 15) %}
+            {% if d.status == 'online' and (d.battery == '?' or (battery_val != -1 and battery_val < 15)) %}
               {% set list.items = list.items + [d] %}
             {% endif %}
           {% endfor %}
@@ -239,29 +239,52 @@
       attributes:
         last_check: "{{ now().isoformat() }}"
         offline_list: >
-          {# Seuil configurable : 25h par défaut #}
-          {% set threshold_hours = 25 %} 
+          {# Seuil configurable : 12h par défaut #}
+          {% set threshold_hours = 12 %} 
           {% set master = 'sensor.z2m_battery_devices' %}
           {# On récupère le fameux registre rempli par le trafic MQTT #}
           {% set registry = state_attr(master, 'last_seen_registry') | default({}) %}
           {% set raw_devices = state_attr(master, 'raw_devices') %}
+          {% set batt_devices = state_attr(master, 'devices') | default([]) %}
           {% set ns = namespace(dead=[]) %}
           
           {% if raw_devices %}
             {% for d in raw_devices %}
               {% if d.type != 'Coordinator' and d.definition != None %}
                 {% set name = d.friendly_name %}
+                
+                {# Vérifier le statut HA pour les appareils sur batterie #}
+                {% set batt_dev = batt_devices | selectattr('name', 'eq', name) | first | default(none) %}
+                {% set is_offline_batt = (batt_dev is not none and batt_dev.status == 'offline') %}
+                
+                {# Vérifier le statut HA pour les routeurs (secteur) #}
+                {% set is_offline_router = false %}
+                {% if batt_dev is none %}
+                  {% set search_name = name | lower | replace(' ', '_') %}
+                  {% set any_entity = states | selectattr('entity_id', 'search', '^.*\.' ~ search_name ~ '(_.*)?$') | first | default(none) %}
+                  {% if any_entity is not none and any_entity.state in ['unavailable', 'unknown'] %}
+                    {% set is_offline_router = true %}
+                  {% endif %}
+                {% endif %}
+                
                 {% set last_seen = registry.get(name) %}
+                {% set delta = 0 %}
+                {% set is_dead = false %}
                 
                 {% if last_seen %}
                   {% set delta = (as_timestamp(now()) - as_timestamp(last_seen)) / 3600 %}
                   {% if delta > threshold_hours %}
-                    {% set ns.dead = ns.dead + [{
-                      "name": name, 
-                      "last_seen": last_seen,
-                      "hours_ago": delta | round(1)
-                    }] %}
+                    {% set is_dead = true %}
                   {% endif %}
+                {% endif %}
+                
+                {% if is_dead or is_offline_batt or is_offline_router %}
+                  {% set ns.dead = ns.dead + [{
+                    "name": name, 
+                    "last_seen": last_seen if last_seen else 'Inconnu',
+                    "hours_ago": delta | round(1) if last_seen else 'N/A',
+                    "maint": batt_dev.maintenance if batt_dev is not none else 'jamais'
+                  }] %}
                 {% endif %}
               {% endif %}
             {% endfor %}

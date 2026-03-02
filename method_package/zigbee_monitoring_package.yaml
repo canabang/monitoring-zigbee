@@ -137,7 +137,7 @@ template:
           {% for d in devices %}
             {% set batt_str = d.battery | string %}
             {% set battery_val = batt_str | replace('~', '') | float(-1) if batt_str != '?' else -1 %}
-            {% if d.status == 'offline' or d.battery == '?' or (battery_val != -1 and battery_val < 15) %}
+            {% if d.status == 'online' and (d.battery == '?' or (battery_val != -1 and battery_val < 15)) %}
               {% set alerts.count = alerts.count + 1 %}
             {% endif %}
           {% endfor %}
@@ -153,7 +153,7 @@ template:
             {% for d in devices %}
               {% set batt_str = d.battery | string %}
               {% set battery_val = batt_str | replace('~', '') | float(-1) if batt_str != '?' else -1 %}
-              {% if d.status == 'offline' or d.battery == '?' or (battery_val != -1 and battery_val < 15) %}
+              {% if d.status == 'online' and (d.battery == '?' or (battery_val != -1 and battery_val < 15)) %}
                 {% set list.items = list.items + [d] %}
               {% endif %}
             {% endfor %}
@@ -173,21 +173,50 @@ template:
         attributes:
           last_check: "{{ now().isoformat() }}"
           offline_list: >
-            {% set threshold_hours = 25 %} 
+            {# Seuil configurable : 12h par défaut #}
+            {% set threshold_hours = 12 %} 
             {% set registry = state_attr('sensor.z2m_battery_devices', 'last_seen_registry') | default({}) %}
             {% set raw_devices = state_attr('sensor.z2m_battery_devices', 'raw_devices') %}
+            {% set batt_devices = state_attr('sensor.z2m_battery_devices', 'devices') | default([]) %}
             {% set ns = namespace(dead=[]) %}
             
             {% if raw_devices %}
               {% for d in raw_devices %}
-                {% if d.type != 'Coordinator' %}
+                {% if d.type != 'Coordinator' and d.definition != None %}
                   {% set name = d.friendly_name %}
+                  
+                  {# Vérifier le statut HA pour les appareils sur batterie #}
+                  {% set batt_dev = batt_devices | selectattr('name', 'eq', name) | first | default(none) %}
+                  {% set is_offline_batt = (batt_dev is not none and batt_dev.status == 'offline') %}
+                  
+                  {# Vérifier le statut HA pour les routeurs (secteur) #}
+                  {% set is_offline_router = false %}
+                  {% if batt_dev is none %}
+                    {% set search_name = name | lower | replace(' ', '_') %}
+                    {% set any_entity = states | selectattr('entity_id', 'search', '^.*\.' ~ search_name ~ '(_.*)?$') | first | default(none) %}
+                    {% if any_entity is not none and any_entity.state in ['unavailable', 'unknown'] %}
+                      {% set is_offline_router = true %}
+                    {% endif %}
+                  {% endif %}
+                  
                   {% set last_seen = registry.get(name) %}
+                  {% set delta = 0 %}
+                  {% set is_dead = false %}
+                  
                   {% if last_seen %}
                     {% set delta = (as_timestamp(now()) - as_timestamp(last_seen)) / 3600 %}
                     {% if delta > threshold_hours %}
-                      {% set ns.dead = ns.dead + [{"name": name, "hours_ago": delta | round(1)}] %}
+                      {% set is_dead = true %}
                     {% endif %}
+                  {% endif %}
+                  
+                  {% if is_dead or is_offline_batt or is_offline_router %}
+                    {% set ns.dead = ns.dead + [{
+                      "name": name, 
+                      "last_seen": last_seen if last_seen else 'Inconnu',
+                      "hours_ago": delta | round(1) if last_seen else 'N/A',
+                      "maint": batt_dev.maintenance if batt_dev is not none else 'jamais'
+                    }] %}
                   {% endif %}
                 {% endif %}
               {% endfor %}
@@ -236,13 +265,24 @@ automation:
   - alias: "📊 Zigbee : Rapport Journalier"
     id: zigbee_daily_report_v3
     description: "Version simplifiée : notification persistante HA uniquement. Envoie un bilan des piles ET des appareils offline (réseau) chaque soir à 20h."
-    mode: single
+    mode: queued
+    max: 5
     
     trigger:
       # Rapport programmé
       - platform: time
         at: "20:00:00"
         id: scheduled
+
+      # Boucle de rappel toutes les 2 heures
+      - platform: time_pattern
+        hours: "/2"
+        id: loop_alert
+
+      # Vérification au démarrage de Home Assistant
+      - platform: homeassistant
+        event: start
+        id: ha_start
 
       # Alerte immédiate si une batterie passe sous le seuil
       - platform: state
@@ -267,8 +307,11 @@ automation:
       # On ignore les améliorations partielles (ex: 14 -> 13 défauts)
       - condition: template
         value_template: >
-          {% if trigger.id == 'scheduled' %}
+          {% if trigger.id == 'scheduled' or trigger.id == 'ha_start' %}
             true
+          {% elif trigger.id == 'loop_alert' %}
+            {# La boucle de 2h passe UNIQUEMENT s'il y a des appareils hors-ligne #}
+            {{ states('sensor.z2m_network_monitor') | int(0) > 0 }}
           {% elif trigger.id in ['battery_alert', 'network_alert'] %}
             {% set from_val = trigger.from_state.state | int(0) %}
             {% set to_val = trigger.to_state.state | int(0) %}
@@ -279,6 +322,23 @@ automation:
           {% endif %}
 
     action:
+      # --- GESTION DU DÉMARRAGE HA (Délai d'initialisation) ---
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ trigger.id == 'ha_start' }}"
+            sequence:
+              # On laisse 5 minutes au réseau Zigbee pour s'initialiser et remonter les états
+              - delay: "00:05:00" 
+
+      # Si c'était un boot HA, on arrête là si aucun appareil n'est hors-ligne
+      - condition: template
+        value_template: >
+          {% if trigger.id == 'ha_start' %}
+            {{ states('sensor.z2m_network_monitor') | int(0) > 0 }}
+          {% else %}
+            true
+          {% endif %}
       # Variables communes
       - variables:
           battery_count: "{{ states('sensor.zigbee_battery_alerts') | int(0) }}"
@@ -301,9 +361,7 @@ automation:
                     {% set report = namespace(text="") %}
                     {% for d in devices %}
                       {% set info = "" %}
-                      {% if d.status == 'offline' %}
-                        {% set info = "🔴 HORS-LIGNE" %}
-                      {% elif d.battery == '?' %}
+                      {% if d.battery == '?' %}
                         {% set info = "❓ BATTERIE INCONNUE" %}
                       {% else %}
                         {% set info = "🪫 BATTERIE " ~ d.battery ~ "%" %}
@@ -317,7 +375,9 @@ automation:
                     {% set devices = state_attr('sensor.z2m_network_monitor', 'offline_list') | default([]) %}
                     {% set report = namespace(text="") %}
                     {% for d in devices %}
-                      {% set report.text = report.text ~ "• " ~ d.name ~ " : 📡 SILENCIEUX depuis " ~ d.hours_ago | round(0) ~ "h\n" %}
+                      {% set time_str = d.hours_ago ~ "h" if d.hours_ago != 'N/A' else "peu de temps" %}
+                      {% set maint_str = " (Maintenance : " ~ d.maint ~ ")" if d.maint is defined and d.maint != 'jamais' else "" %}
+                      {% set report.text = report.text ~ "• " ~ d.name ~ " : 📡 SILENCIEUX depuis " ~ time_str ~ maint_str ~ "\n" %}
                     {% endfor %}
                     {{ report.text }}
                   

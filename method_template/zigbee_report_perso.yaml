@@ -9,6 +9,16 @@ triggers:
     at: "20:00:00"
     id: scheduled
 
+  # Boucle de rappel toutes les 2 heures
+  - trigger: time_pattern
+    hours: "/2"
+    id: loop_alert
+
+  # Vérification au démarrage de Home Assistant
+  - trigger: homeassistant
+    event: start
+    id: ha_start
+
   # Alerte immédiate si une batterie passe sous le seuil
   - trigger: state
     entity_id: sensor.zigbee_battery_alerts
@@ -32,8 +42,11 @@ conditions:
   # On ignore les améliorations partielles (ex: 14 -> 13 défauts)
   - condition: template
     value_template: >
-      {% if trigger.id == 'scheduled' %}
+      {% if trigger.id == 'scheduled' or trigger.id == 'ha_start' %}
         true
+      {% elif trigger.id == 'loop_alert' %}
+        {# La boucle de 2h passe UNIQUEMENT s'il y a des appareils hors-ligne #}
+        {{ states('sensor.z2m_network_monitor') | int(0) > 0 }}
       {% elif trigger.id in ['battery_alert', 'network_alert'] %}
         {% set from_val = trigger.from_state.state | int(0) %}
         {% set to_val = trigger.to_state.state | int(0) %}
@@ -44,6 +57,23 @@ conditions:
       {% endif %}
 
 actions:
+  # --- GESTION DU DÉMARRAGE HA (Délai d'initialisation) ---
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.id == 'ha_start' }}"
+        sequence:
+          # On laisse 5 minutes au réseau Zigbee pour s'initialiser et remonter les états
+          - delay: "00:05:00" 
+
+  # Si c'était un boot HA, on arrête là si aucun appareil n'est hors-ligne
+  - condition: template
+    value_template: >
+      {% if trigger.id == 'ha_start' %}
+        {{ states('sensor.z2m_network_monitor') | int(0) > 0 }}
+      {% else %}
+        true
+      {% endif %}
   # Variables communes
   - variables:
       battery_count: "{{ states('sensor.zigbee_battery_alerts') | int(0) }}"
@@ -72,9 +102,7 @@ actions:
                 {% set report = namespace(text="") %}
                 {% for d in devices %}
                   {% set info = "" %}
-                  {% if d.status == 'offline' %}
-                    {% set info = "🔴 **HORS-LIGNE**" %}
-                  {% elif d.battery == '?' %}
+                  {% if d.battery == '?' %}
                     {% set info = "❓ **BATTERIE INCONNUE**" %}
                   {% else %}
                     {% set info = "🪫 **BATTERIE " ~ d.battery ~ "%**" %}
@@ -87,7 +115,9 @@ actions:
                 {% set devices = state_attr('sensor.z2m_network_monitor', 'offline_list') | default([]) %}
                 {% set report = namespace(text="") %}
                 {% for d in devices %}
-                  {% set report.text = report.text ~ "- " ~ d.name ~ " : 📡 **SILENCIEUX** depuis " ~ d.hours_ago | round(0) ~ "h\n" %}
+                  {% set time_str = d.hours_ago ~ "h" if d.hours_ago != 'N/A' else "peu de temps" %}
+                  {% set maint_str = " (Maintenance : *" ~ d.maint ~ "*)" if d.maint is defined and d.maint != 'jamais' else "" %}
+                  {% set report.text = report.text ~ "- " ~ d.name ~ " : 📡 **SILENCIEUX** depuis " ~ time_str ~ maint_str ~ "\n" %}
                 {% endfor %}
                 {{ report.text }}
               
@@ -178,4 +208,5 @@ actions:
       # ID unique basé sur le timestamp pour empiler les notifs (historique)
       notification_id: "zigbee_debug_{{ as_timestamp(now()) }}"
 
-mode: single
+mode: queued
+max: 5
