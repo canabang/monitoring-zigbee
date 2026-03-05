@@ -6,19 +6,14 @@
 
 # --- CAPTEUR MAÎTRE (INVENTAIRE & ACTIVITÉ) ---
 - trigger:
-    # ┌─────────────────────────────────────────────────────────────────────────┐
-    # │  ⚠️  ADAPTEZ LE TOPIC MQTT CI-DESSOUS À VOTRE INSTALLATION Z2M  ⚠️     │
-    # │      Remplacez "zigbee2mqtt02" par votre préfixe (ex: "zigbee2mqtt")    │
-    # └─────────────────────────────────────────────────────────────────────────┘
-    
     # 1. Mise à jour de l'inventaire complet (Rare : seulement si changement d'appairage)
     - platform: mqtt
-      topic: zigbee2mqtt02/bridge/devices  # ◄── TOPIC 1/2 À MODIFIER
+      topic: zigbee2mqtt/bridge/devices
       id: inventory
     
     # 2. Écoute du trafic pour marquer la présence (Last Seen)
     - platform: mqtt
-      topic: zigbee2mqtt02/+  # ◄── TOPIC 2/2 À MODIFIER
+      topic: zigbee2mqtt/+
       id: traffic
     
     # 3. Rafraîchissement manuel

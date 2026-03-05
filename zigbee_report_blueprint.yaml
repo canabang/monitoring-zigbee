@@ -1,10 +1,18 @@
 blueprint:
   name: "📊 Zigbee : Rapport Journalier"
   description: >-
-    Envoie un bilan des piles ET des appareils offline (réseau) à heure fixe
-    ou lors d'une alerte immédiate.
-
+    Envoie un bilan des piles ET des appareils offline (réseau) à heure fixe ou lors d'une alerte immédiate.<br>
     Génère un rapport formaté et permet l'envoi de notifications personnalisées.
+
+    <hr>
+    
+    ✨ **Variables disponibles pour vos actions personnalisées :**<br>
+    • `{{ message_title }}` : Titre dynamique (ex: "🚨 Rapport Zigbee - 2 alerte(s)")<br>
+    • `{{ message }}` : Le rapport complet formaté (Piles saines, liste des alertes...)<br>
+    • `{{ alert_summary }}` : Texte court (ex: "2 alerte(s) batterie et 1 appareil(s) silencieux")<br>
+    • `{{ battery_count }}` : Nombre d'alertes batterie (Nombre)<br>
+    • `{{ network_count }}` : Nombre d'appareils silencieux (Nombre)<br>
+    • `{{ total_zigbee }}` : Nombre total d'appareils Zigbee (Nombre)
   domain: automation
   input:
     # --- 1. ENTITÉS REQUISES ---

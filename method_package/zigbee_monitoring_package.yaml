@@ -19,13 +19,10 @@
 # ------------------------------------------------------------------------------
 template:
   - trigger:
-      # ┌─────────────────────────────────────────────────────────────────────────┐
-      # │  ⚠️  ADAPTEZ LE TOPIC MQTT CI-DESSOUS À VOTRE INSTALLATION Z2M  ⚠️     │
-      # └─────────────────────────────────────────────────────────────────────────┘
       - platform: mqtt
-        topic: zigbee2mqtt02/bridge/devices  # Inventaire (Rare)
+        topic: zigbee2mqtt/bridge/devices  # Inventaire (Rare)
       - platform: mqtt
-        topic: zigbee2mqtt02/+               # Trafic temps réel (Last Seen)
+        topic: zigbee2mqtt/+               # Trafic temps réel (Last Seen)
       
       # Rafraîchissement manuel via le bouton du package
       - platform: state

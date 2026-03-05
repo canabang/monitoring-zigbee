@@ -38,16 +38,9 @@ monitoring-zigbee/
 └── README.md                        # Ce fichier
 ```
 
-## ⚠️ Pré-requis Important : Topic MQTT
-Les fichiers (Package ou Template) sont configurés par défaut avec un topic spécifique : **`zigbee2mqtt02`**.
-```yaml
-- trigger:
-    - platform: mqtt
-      topic: zigbee2mqtt02/bridge/devices  <-- VÉRIFIEZ CE TOPIC !
-    - platform: mqtt
-      topic: zigbee2mqtt02/+              <-- ET CELUI-CI AUSSI !
-```
-Si votre installation Zigbee2MQTT utilise le topic par défaut (`zigbee2mqtt`), **vous devez modifier ces 2 lignes** avant l'installation pour mettre : `zigbee2mqtt/...`.
+## ⚠️ Pré-requis : Topic MQTT
+Les fichiers (Package ou Template) sont configurés par défaut avec le topic classique de Zigbee2MQTT : **`zigbee2mqtt`**.
+Si vous avez personnalisé votre topic de base (ex: `zigbee2mqtt_maison`), pensez à le modifier aux endroits dédiés dans le code YAML des capteurs !
 
 ## 🛠️ Installation & Configuration
 
@@ -85,8 +78,8 @@ Copiez le contenu de `method_template/zigbee_report.yaml` dans une nouvelle auto
 
 ### 1. Le Capteur Maître (`sensor.z2m_battery_devices`)
 Ce capteur écoute **deux sources MQTT** :
-1.  `zigbee2mqtt02/bridge/devices` : Pour l'inventaire complet des appareils (déclenché rarement).
-2.  `zigbee2mqtt02/+` : Pour le trafic temps réel (mise à jour de l'attribut `last_seen_registry`).
+1.  `zigbee2mqtt/bridge/devices` : Pour l'inventaire complet des appareils (déclenché rarement).
+2.  `zigbee2mqtt/+` : Pour le trafic temps réel (mise à jour de l'attribut `last_seen_registry`).
 
 - **État** : Nombre total d'appareils sur batterie détectés.
 - **Attributs clés** :
@@ -172,10 +165,38 @@ La gestion des notifications se fait désormais via le **Blueprint officiel** (`
 **Avantages du Blueprint :**
 1. **Entités détectées automatiquement** (si installation via ce tuto).
 2. **Interface Graphique** : Plus besoin de toucher au YAML pour changer l'heure du rapport.
-3. **Actions Personnalisées** : Un bloc vous permet d'ajouter très simplement n'importe quelle notification (Mobile App, Discord, Telegram...) en complément de la notification persistante de Home Assistant. Les variables du script (comme `{{ alert_summary }}`) sont disponibles pour vos actions !
+3. **Actions Personnalisées** : Un bloc vous permet d'ajouter très simplement n'importe quelle notification (Mobile App, Discord, Telegram...) en complément de la notification persistante de Home Assistant.
 
-> [!NOTE]
-> L'ancienne fonction de boucle ("loop_alert" toutes les 2 heures) a été retirée pour éviter le spam inutile, l'anti-spam de base étant suffisant pour traiter les nouvelles alertes ou le franchissement de seuils.
+### ✨ Les variables du Blueprint
+Lorsque vous ajoutez une action personnalisée via l'interface, vous pouvez insérer ces variables exactes dans vos champs de message :
+
+- `{{ message_title }}` : Titre dynamique (ex: *"🚨 Rapport Zigbee - 2 alerte(s)"* ou *"✅ Rapport Zigbee - Tout OK"*)
+- `{{ message }}` : Le fameux rapport complet formaté avec les listes.
+- `{{ alert_summary }}` : Un résumé ultra-court (ex: *"2 alerte(s) batterie et 1 appareil(s) silencieux"*). Idéal pour un TTS Alexa/Google ou l'objet d'un mail !
+- `{{ battery_count }}`, `{{ network_count }}`, `{{ total_zigbee }}` : Les compteurs bruts (utile si vous voulez faire des conditions `choose` dans vos actions).
+
+**Exemple de ce que contient la variable `{{ message }}` :**
+```text
+📊 Réseau : 43 appareils Zigbee (31 sur batterie)
+
+⚠️ BATTERIES (2 alertes)
+• CapFenSaM : 🪫 BATTERIE 17% (Maintenance : pile 14/08/2026)
+• LumiSal : 🪫 BATTERIE 0% (Maintenance : pile 02/06/2025)
+
+📡 RÉSEAU (1 silencieux)
+• LedPlanCul : 📡 SILENCIEUX depuis 1h (Maintenance : jamais)
+
+---
+🔍 DÉCLENCHEUR : scheduled
+```
+
+**Exemple d'action personnalisée (Notification sur l'App Mobile) :**
+```yaml
+action: notify.mobile_app_mon_iphone
+data:
+  title: "{{ message_title }}"
+  message: "{{ message }}"
+```
 
 ![Démonstration du Blueprint](blueprint.png) *(Ajouter image au besoin)*
 
