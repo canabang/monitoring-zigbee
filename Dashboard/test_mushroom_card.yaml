@@ -1,81 +1,176 @@
-type: vertical-stack
+type: custom:vertical-stack-in-card
 cards:
   - type: custom:mushroom-title-card
     title: 📊 Test Capteurs Zigbee
     subtitle: Vérification & Attributs
-
   - type: custom:mushroom-template-card
-    entity: sensor.z2m_battery_devices
-    primary: "Surveillance Maître"
+    primary: Diagnostic Zigbee Complet
+    secondary: Bilan détaillé des capteurs et de l'état du réseau
+    icon: mdi:monitor-dashboard
+    color: "#2E8B57"
+    features_position: bottom
+    card_mod:
+      style: |
+        ha-card {
+          background: rgba(var(--rgb-primary-text-color), 0.04);
+          box-shadow: none;
+          border-radius: 12px 12px 0 0;
+          padding: 8px;
+          border-bottom: 2px solid rgba(var(--rgb-primary-text-color), 0.1);
+        }
+  - type: custom:mushroom-template-card
+    primary: Capteur Maître
     secondary: |-
-      Total Surveillés : {{ states(entity) }} batteries
-      Inventaire Brut : {{ state_attr(entity, 'raw_devices') | length }} appareils
-      Der. Check : {{ state_attr(entity, 'last_check') | default('Jamais') | as_timestamp | timestamp_custom('%H:%M:%S', true, 'Jamais') }}
-    icon: mdi:battery-check
+      Total Surveillés : {{ state_attr('sensor.z2m_battery_devices', 'devices') | length }} batteries
+      Inventaire Brut : {{ state_attr('sensor.z2m_battery_devices', 'raw_devices') | length }} appareils
+      Der. Check : {{ state_attr('sensor.z2m_battery_devices', 'last_check') | as_timestamp | timestamp_custom('%H:%M:%S') }}
+    icon: mdi:file-tree
     icon_color: blue
-    layout: horizontal
     multiline_secondary: true
-
+    entity: sensor.z2m_battery_devices
+    tap_action:
+      action: more-info
+    card_mod:
+      style:
+        mushroom-state-info$: |
+          .secondary {
+            white-space: pre-wrap !important;
+          }
+        .: |
+          ha-card {
+            margin-top: 8px;
+            margin-bottom: 4px;
+            border: 1px solid rgba(var(--rgb-primary-text-color), 0.05);
+            box-shadow: none;
+          }
   - type: custom:mushroom-template-card
-    entity: sensor.zigbee_battery_alerts
-    primary: "Alertes Batteries (< 20% ou ?)"
+    primary: Alertes Batteries (< 20% ou ?)
     secondary: |-
-      Alertes en cours : {{ states(entity) }}
+      Alertes en cours : {{ states('sensor.zigbee_battery_alerts') }}
       Détails :
-      {% set devices = state_attr(entity, 'alert_devices') %}
-      {% if devices %}
-        {% for d in devices %}
-          - {{ d.name }} ({{ d.battery }}%)
-        {% endfor %}
+      {% for d in state_attr('sensor.zigbee_battery_alerts', 'alert_devices') | default([]) -%}
+        • {{ d.name }} ({{ d.battery }}%)
       {% else %}
-        Aucune alerte
+        Aucune alerte.
+      {% endfor %}
+    icon: |-
+      {% if states('sensor.zigbee_battery_alerts') | int(0) > 0 %}
+        mdi:battery-alert
+      {% else %}
+        mdi:battery-check
       {% endif %}
-    icon: "{{ 'mdi:alert-circle' if states(entity) | int(0) > 0 else 'mdi:check-circle' }}"
-    icon_color: "{{ 'red' if states(entity) | int(0) > 0 else 'green' }}"
-    layout: horizontal
+    icon_color: |-
+      {% if states('sensor.zigbee_battery_alerts') | int(0) > 0 %}
+        red
+      {% else %}
+        #2E8B57
+      {% endif %}
     multiline_secondary: true
-
+    entity: sensor.zigbee_battery_alerts
+    tap_action:
+      action: more-info
+    card_mod:
+      style:
+        mushroom-state-info$: |
+          .secondary {
+            white-space: pre-wrap !important;
+          }
+        .: |
+          ha-card {
+            margin-bottom: 4px;
+            border: 1px solid rgba(var(--rgb-primary-text-color), 0.05);
+            box-shadow: none;
+          }
   - type: custom:mushroom-template-card
-    entity: sensor.z2m_network_monitor
-    primary: "Réseau (Silencieux / Offline)"
+    primary: Réseau (Silencieux / Offline)
     secondary: |-
-      Appareils offline : {{ states(entity) }}
+      Appareils offline : {{ states('sensor.z2m_network_monitor') }}
       Détails :
-      {% set devices = state_attr(entity, 'offline_list') %}
-      {% if devices %}
-        {% for d in devices %}
-          - {{ d.name }} (inactif depuis > {{ d.hours_ago }}h)
-        {% endfor %}
+      {% for d in state_attr('sensor.z2m_network_monitor', 'offline_list') | default([]) -%}
+        • {{ d.name }} ({{ d.hours_ago }}h)
       {% else %}
         Tout est OK
+      {% endfor %}
+    icon: |-
+      {% set count = states('sensor.z2m_network_monitor') | int(0) %}
+      {% if count > 0 %}
+        mdi:lan-disconnect
+      {% else %}
+        mdi:lan-check
       {% endif %}
-    icon: "{{ 'mdi:network-strength-off-outline' if states(entity) | int(0) > 0 else 'mdi:network-strength-4' }}"
-    icon_color: "{{ 'red' if states(entity) | int(0) > 0 else 'green' }}"
-    layout: horizontal
+    icon_color: |-
+      {% if states('sensor.z2m_network_monitor') | int(0) > 0 %}
+        red
+      {% else %}
+        #2E8B57
+      {% endif %}
     multiline_secondary: true
-
+    entity: sensor.z2m_network_monitor
+    tap_action:
+      action: more-info
+    card_mod:
+      style:
+        mushroom-state-info$: |
+          .secondary {
+            white-space: pre-wrap !important;
+          }
+        .: |
+          ha-card {
+            margin-bottom: 4px;
+            border: 1px solid rgba(var(--rgb-primary-text-color), 0.05);
+            box-shadow: none;
+          }
   - type: custom:mushroom-template-card
-    entity: sensor.z2m_lqi_monitor
-    primary: "Qualité Signal (LQI < 30)"
+    primary: Qualité Signal (LQI < 30)
     secondary: |-
-      Signaux faibles : {{ states(entity) }}
+      Signaux faibles : {{ states('sensor.z2m_lqi_monitor') }}
       Détails :
-      {% set devices = state_attr(entity, 'low_lqi_list') %}
-      {% if devices %}
-        {% for d in devices %}
-          - {{ d.name }} (LQI: {{ d.lqi }})
-        {% endfor %}
+      {% for d in state_attr('sensor.z2m_lqi_monitor', 'low_lqi_list') | default([]) -%}
+        • {{ d.name }} (LQI: {{ d.lqi }})
       {% else %}
         Signal global OK
+      {% endfor %}
+    icon: mdi:wifi-star
+    icon_color: |-
+      {% if states('sensor.z2m_lqi_monitor') | int(0) > 0 %}
+        #ff9800
+      {% else %}
+        #2E8B57
       {% endif %}
-    icon: "{{ 'mdi:wifi-strength-1-alert' if states(entity) | int(0) > 0 else 'mdi:wifi' }}"
-    icon_color: "{{ 'orange' if states(entity) | int(0) > 0 else 'green' }}"
-    layout: horizontal
     multiline_secondary: true
-
-  - type: custom:mushroom-entity-card
+    entity: sensor.z2m_lqi_monitor
+    tap_action:
+      action: more-info
+    card_mod:
+      style:
+        mushroom-state-info$: |
+          .secondary {
+            white-space: pre-wrap !important;
+          }
+        .: |
+          ha-card {
+            margin-bottom: 4px;
+            border: 1px solid rgba(var(--rgb-primary-text-color), 0.05);
+            box-shadow: none;
+          }
+  - type: custom:mushroom-template-card
+    primary: Forcer l'Actualisation
+    secondary: |-
+      Dernier refresh il y a {{ relative_time(states.button.actualiser_monitoring_zigbee.last_changed) }}
+    icon: mdi:cloud-refresh
+    icon_color: "#2E8B57"
     entity: button.actualiser_monitoring_zigbee
-    name: "Forcer l'Actualisation"
-    icon: mdi:refresh
-    icon_color: green
     layout: horizontal
+    tap_action:
+      action: call-service
+      service: button.press
+      target:
+        entity_id: button.actualiser_monitoring_zigbee
+    card_mod:
+      style: |
+        ha-card {
+          border-radius: 0 0 12px 12px;
+          border-top: 1px dashed rgba(var(--rgb-primary-text-color), 0.1);
+          background: rgba(46, 139, 87, 0.05);
+          box-shadow: none;
+        }

@@ -149,6 +149,9 @@ Cette carte regroupe **Batteries + Réseau + Bouton Actualiser** en une seule gr
 
 ![Démonstration du Dashboard Unifié](dashboard_unified_grid.gif)
 
+**Aperçu des deux cartes (Mushroom et native) :**
+![Aperçu des Cartes Dashboard](dashboard_preview_02.png)
+
 > [!NOTE]
 > Les anciennes cartes séparées (`dashboard_card.yaml`, `dashboard_network_card.yaml`, etc.) ont été déplacées dans le dossier `archive/` pour clarté.
 

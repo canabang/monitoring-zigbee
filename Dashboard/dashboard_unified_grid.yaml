@@ -51,7 +51,7 @@ cards:
 
           {% for d in ns.alerts | sort(attribute='bat_val') -%}
 
-          | **{{ d.name }}** | {{ '⚠️ FAIBLE' if d.bat_val < 15 else '❓ INCONNU' }} | {{ d.bat_display
+          | **{{ d.name }}** | {{ '⚠️ FAIBLE' if d.bat_val < 20 else '❓ INCONNU' }} | {{ d.bat_display
           }}% | {{ d.maint }} |
 
           {% endfor %}
@@ -109,28 +109,30 @@ cards:
 
 
           <details>
-          <summary>📋 Activité Récente ({{ registry | length }} appareils)</summary>
 
+          {% set raw_devices_names = state_attr('sensor.z2m_battery_devices', 'raw_devices') | map(attribute='friendly_name') | list %}
+          {% set ns = namespace(filtered=[]) %}
+          {% for name, ts in registry.items() %}
+            {% if name in raw_devices_names %}
+              {% set ns.filtered = ns.filtered + [{'name': name, 'ts': ts}] %}
+            {% endif %}
+          {% endfor %}
+          
+          <summary>📋 Activité Récente ({{ ns.filtered | length }} appareils physiques)</summary>
 
-          {% if registry | length > 0 %}
+          {% if ns.filtered | length > 0 %}
 
-          | Appareil | Dernier signal |
+          | Appareil | Dernier signal ({{ ns.filtered | length }}) |
 
           | :--- | :---: |
 
-          {% for name, ts in (registry.items() | sort(attribute='1',
-          reverse=true))[:10] -%}
+          {% for item in (ns.filtered | sort(attribute='ts',
+          reverse=true)) -%}
 
-          | {{ name }} | {{ ts | as_timestamp | timestamp_custom('%d/%m %H:%M')
+          | {{ item.name }} | {{ item.ts | as_timestamp | timestamp_custom('%d/%m %H:%M')
           }} |
 
           {% endfor %}
-
-          {% if registry | length > 10 %}
-
-          | ... | ({{ registry | length - 10 }} de plus) |
-
-          {% endif %}
 
           {% else %}
 
