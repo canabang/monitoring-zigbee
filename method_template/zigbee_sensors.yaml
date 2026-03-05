@@ -223,6 +223,8 @@
     - platform: time_pattern
       minutes: "/15"
     - platform: state
+      entity_id: sensor.z2m_battery_devices
+    - platform: state
       entity_id: button.actualiser_monitoring_zigbee
   
   sensor:
@@ -256,8 +258,8 @@
                 {% set is_offline_router = false %}
                 {% if batt_dev is none %}
                   {% set search_name = name | lower | replace(' ', '_') %}
-                  {% set any_entity = states | selectattr('entity_id', 'search', '^.*\.' ~ search_name ~ '(_.*)?$') | first | default(none) %}
-                  {% if any_entity is not none and any_entity.state in ['unavailable', 'unknown'] %}
+                  {% set lq_state = states('sensor.' ~ search_name ~ '_linkquality') %}
+                  {% if lq_state in ['unavailable', 'unknown'] %}
                     {% set is_offline_router = true %}
                   {% endif %}
                 {% endif %}
