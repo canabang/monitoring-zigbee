@@ -1,0 +1,81 @@
+type: vertical-stack
+cards:
+  - type: custom:mushroom-title-card
+    title: 📊 Test Capteurs Zigbee
+    subtitle: Vérification & Attributs
+
+  - type: custom:mushroom-template-card
+    entity: sensor.z2m_battery_devices
+    primary: "Surveillance Maître"
+    secondary: |-
+      Total Surveillés : {{ states(entity) }} batteries
+      Inventaire Brut : {{ state_attr(entity, 'raw_devices') | length }} appareils
+      Der. Check : {{ state_attr(entity, 'last_check') | default('Jamais') | as_timestamp | timestamp_custom('%H:%M:%S', true, 'Jamais') }}
+    icon: mdi:battery-check
+    icon_color: blue
+    layout: horizontal
+    multiline_secondary: true
+
+  - type: custom:mushroom-template-card
+    entity: sensor.zigbee_battery_alerts
+    primary: "Alertes Batteries (< 20% ou ?)"
+    secondary: |-
+      Alertes en cours : {{ states(entity) }}
+      Détails :
+      {% set devices = state_attr(entity, 'alert_devices') %}
+      {% if devices %}
+        {% for d in devices %}
+          - {{ d.name }} ({{ d.battery }}%)
+        {% endfor %}
+      {% else %}
+        Aucune alerte
+      {% endif %}
+    icon: "{{ 'mdi:alert-circle' if states(entity) | int(0) > 0 else 'mdi:check-circle' }}"
+    icon_color: "{{ 'red' if states(entity) | int(0) > 0 else 'green' }}"
+    layout: horizontal
+    multiline_secondary: true
+
+  - type: custom:mushroom-template-card
+    entity: sensor.z2m_network_monitor
+    primary: "Réseau (Silencieux / Offline)"
+    secondary: |-
+      Appareils offline : {{ states(entity) }}
+      Détails :
+      {% set devices = state_attr(entity, 'offline_list') %}
+      {% if devices %}
+        {% for d in devices %}
+          - {{ d.name }} (inactif depuis > {{ d.hours_ago }}h)
+        {% endfor %}
+      {% else %}
+        Tout est OK
+      {% endif %}
+    icon: "{{ 'mdi:network-strength-off-outline' if states(entity) | int(0) > 0 else 'mdi:network-strength-4' }}"
+    icon_color: "{{ 'red' if states(entity) | int(0) > 0 else 'green' }}"
+    layout: horizontal
+    multiline_secondary: true
+
+  - type: custom:mushroom-template-card
+    entity: sensor.z2m_lqi_monitor
+    primary: "Qualité Signal (LQI < 30)"
+    secondary: |-
+      Signaux faibles : {{ states(entity) }}
+      Détails :
+      {% set devices = state_attr(entity, 'low_lqi_list') %}
+      {% if devices %}
+        {% for d in devices %}
+          - {{ d.name }} (LQI: {{ d.lqi }})
+        {% endfor %}
+      {% else %}
+        Signal global OK
+      {% endif %}
+    icon: "{{ 'mdi:wifi-strength-1-alert' if states(entity) | int(0) > 0 else 'mdi:wifi' }}"
+    icon_color: "{{ 'orange' if states(entity) | int(0) > 0 else 'green' }}"
+    layout: horizontal
+    multiline_secondary: true
+
+  - type: custom:mushroom-entity-card
+    entity: button.actualiser_monitoring_zigbee
+    name: "Forcer l'Actualisation"
+    icon: mdi:refresh
+    icon_color: green
+    layout: horizontal

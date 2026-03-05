@@ -33,7 +33,7 @@ cards:
               {% set bat_str = d.battery | string %}
               {% set is_unknown = bat_str in ['?', 'unknown', 'unavailable', 'None'] %}
               {% set bat_val = bat_str | replace('~', '') | float(999) if not is_unknown else 999 %}
-              {% if is_unknown or (bat_val < 15) %}
+              {% if is_unknown or (bat_val < 20) %}
                 {% set ns.alerts = ns.alerts + [{'name': d.name, 'bat_display': d.battery if not is_unknown else '?', 'bat_val': bat_val, 'status': d.status, 'maint': d.maintenance}] %}
               {% else %}
                 {% set ns.ok = ns.ok + [{'name': d.name, 'bat_display': d.battery, 'bat_val': bat_val, 'status': d.status, 'maint': d.maintenance}] %}

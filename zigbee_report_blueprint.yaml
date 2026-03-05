@@ -1,0 +1,251 @@
+blueprint:
+  name: "📊 Zigbee : Rapport Journalier"
+  description: >-
+    Envoie un bilan des piles ET des appareils offline (réseau) à heure fixe
+    ou lors d'une alerte immédiate.
+
+    Génère un rapport formaté et permet l'envoi de notifications personnalisées.
+  domain: automation
+  input:
+    # --- 1. ENTITÉS REQUISES ---
+    sensor_master:
+      name: "Capteur Maître"
+      description: "Le capteur contenant l'attribut raw_devices (ex: sensor.z2m_battery_devices)"
+      selector:
+        entity:
+          domain: sensor
+      default: sensor.z2m_battery_devices
+
+    sensor_battery_alerts:
+      name: "Capteur Alertes Batteries"
+      description: "Le capteur comptant les alertes avec l'attribut alert_devices"
+      selector:
+        entity:
+          domain: sensor
+      default: sensor.zigbee_battery_alerts
+
+    sensor_network_monitor:
+      name: "Capteur Réseau / Hors Ligne"
+      description: "Le capteur comptant les appareils morts avec l'attribut offline_list"
+      selector:
+        entity:
+          domain: sensor
+      default: sensor.z2m_network_monitor
+
+    # --- 2. PROGRAMMATION ---
+    time_report:
+      name: "Heure du rapport journalier"
+      description: "Heure à laquelle le rapport complet doit être envoyé chaque jour."
+      selector:
+        time: {}
+      default: "20:00:00"
+
+    ha_start_delay:
+      name: "Délai au démarrage (minutes)"
+      description: "Attente après un redémarrage de HA avant de vérifier le réseau."
+      selector:
+        number:
+          min: 1
+          max: 30
+          unit_of_measurement: min
+      default: 5
+
+    # --- 3. OPTIONS AVANCÉES ---
+    enable_trigger_info:
+      name: "Inclure l'information du déclencheur (Debug)"
+      description: "Affiche à la fin du message la cause de l'exécution (ex: battery_alert)."
+      selector:
+        boolean: {}
+      default: true
+
+    # --- 4. ACTIONS DE NOTIFICATION ---
+    enable_persistent_notification:
+      name: "Créer une notification HA (Persistante)"
+      description: "Crée automatiquement une notification dans l'interface de Home Assistant."
+      selector:
+        boolean: {}
+      default: true
+
+    custom_actions:
+      name: "Actions de notification supplémentaires"
+      description: >-
+        Ajoutez vos propres services de notification (Discord, Telegram, Mobile App...).
+        Les variables suivantes sont disponibles dans le message :
+        {{ message }} (Le rapport complet formaté)
+        {{ alert_summary }} (Texte court : 'X alertes batterie et Y offline')
+        {{ battery_count }}, {{ network_count }}, {{ total_zigbee }}
+      selector:
+        action: {}
+      default: []
+
+mode: queued
+max: 5
+
+trigger:
+  # Rapport programmé
+  - platform: time
+    at: !input time_report
+    id: scheduled
+
+  # Vérification au démarrage de Home Assistant
+  - platform: homeassistant
+    event: start
+    id: ha_start
+
+  # Alerte immédiate si une batterie passe sous le seuil
+  - platform: state
+    entity_id: !input sensor_battery_alerts
+    not_from:
+      - "unknown"
+      - "unavailable"
+    for: "00:01:00"
+    id: battery_alert
+
+  # Alerte immédiate si un appareil devient offline
+  - platform: state
+    entity_id: !input sensor_network_monitor
+    not_from:
+      - "unknown"
+      - "unavailable"
+    for: "00:01:00"
+    id: network_alert
+
+condition:
+  # Filtre anti-spam : On ne notifie que si ça empire ou si c'est résolu (0)
+  - condition: template
+    value_template: >
+      {% if trigger.id == 'scheduled' or trigger.id == 'ha_start' %}
+        true
+      {% elif trigger.id in ['battery_alert', 'network_alert'] %}
+        {% set from_val = trigger.from_state.state | int(0) %}
+        {% set to_val = trigger.to_state.state | int(0) %}
+        {{ to_val > from_val or to_val == 0 }}
+      {% else %}
+        true
+      {% endif %}
+
+action:
+  # Variables principales liées aux inputs
+  - variables:
+      sensor_master: !input sensor_master
+      sensor_battery: !input sensor_battery_alerts
+      sensor_network: !input sensor_network_monitor
+      enable_trigger: !input enable_trigger_info
+      is_persistent_enabled: !input enable_persistent_notification
+
+  # --- GESTION DU DÉMARRAGE HA (Délai d'initialisation) ---
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.id == 'ha_start' }}"
+        sequence:
+          # Attente configurable
+          - delay:
+              minutes: !input ha_start_delay
+
+  # Si c'était un boot HA, on arrête là si aucun appareil n'est hors-ligne
+  - condition: template
+    value_template: >
+      {% if trigger.id == 'ha_start' %}
+        {{ states(sensor_network) | int(0) > 0 }}
+      {% else %}
+        true
+      {% endif %}
+
+  # Variables communes du message
+  - variables:
+      battery_count: "{{ states(sensor_battery) | int(0) }}"
+      network_count: "{{ states(sensor_network) | int(0) }}"
+      battery_devices: "{{ states(sensor_master) | int(0) }}"
+      total_zigbee: "{{ state_attr(sensor_master, 'raw_devices') | default([]) | length }}"
+      has_alerts: "{{ battery_count > 0 or network_count > 0 }}"
+      debug_trigger: >
+        {% if enable_trigger %}
+        ---
+        🔍 **DÉCLENCHEUR** : `{{ trigger.id if trigger is defined else 'N/A' }}`
+        {% if trigger is defined and trigger.platform == 'state' %}
+        `{{ trigger.entity_id }}` : {{ trigger.from_state.state }} ➡️ {{ trigger.to_state.state }}
+        {% endif %}
+        {% else %}
+        {% endif %}
+
+  # Choix selon présence d'alertes ou non
+  - choose:
+      # CAS 1 : Il y a des alertes
+      - conditions:
+          - condition: template
+            value_template: "{{ has_alerts }}"
+        sequence:
+          - variables:
+              battery_list: >
+                {% set devices = state_attr(sensor_battery, 'alert_devices') | default([]) %}
+                {% set report = namespace(text="") %}
+                {% for d in devices %}
+                  {% set info = "❓ BATTERIE INCONNUE" if d.battery == '?' else "🪫 BATTERIE " ~ d.battery ~ "%" %}
+                  {% set report.text = report.text ~ "• " ~ d.name ~ " : " ~ info ~ " (Maintenance : " ~ d.maintenance ~ ")\n" %}
+                {% endfor %}
+                {{ report.text }}
+              
+              network_list: >
+                {% set devices = state_attr(sensor_network, 'offline_list') | default([]) %}
+                {% set report = namespace(text="") %}
+                {% for d in devices %}
+                  {% set time_str = d.hours_ago ~ "h" if d.hours_ago != 'N/A' else "peu de temps" %}
+                  {% set maint_str = " (Maintenance : " ~ d.maint ~ ")" if d.maint is defined and d.maint != 'jamais' else "" %}
+                  {% set report.text = report.text ~ "• " ~ d.name ~ " : 📡 SILENCIEUX depuis " ~ time_str ~ maint_str ~ "\n" %}
+                {% endfor %}
+                {{ report.text }}
+              
+              alert_summary: >
+                {% set parts = [] %}
+                {% if battery_count > 0 %}{% set parts = parts + [battery_count ~ " alerte(s) batterie"] %}{% endif %}
+                {% if network_count > 0 %}{% set parts = parts + [network_count ~ " appareil(s) silencieux"] %}{% endif %}
+                {{ parts | join(" et ") }}
+
+              message_title: "🚨 Rapport Zigbee - {{ battery_count + network_count }} alerte(s)"
+              message: |
+                📊 Réseau : {{ total_zigbee }} appareils Zigbee ({{ battery_devices }} sur batterie)
+
+                ⚠️ BATTERIES ({{ battery_count }} alerte{{ 's' if battery_count > 1 else '' }})
+                {{ battery_list if battery_count > 0 else '✅ Aucune alerte' }}
+
+                📡 RÉSEAU ({{ network_count }} silencieux)
+                {{ network_list if network_count > 0 else '✅ Tous les appareils communiquent' }}
+
+                {{ debug_trigger }}
+
+    # CAS 2 : Tout va bien !
+    default:
+      - variables:
+          alert_summary: "Tout est OK"
+          message_title: "✅ Rapport Zigbee - Tout OK"
+          message: |
+            ✅ Tous les systèmes sont opérationnels !
+            
+            📊 Réseau : {{ total_zigbee }} appareils Zigbee
+            • 🔋 {{ battery_devices }} sur batterie surveillés
+            • ✅ 0 alerte batterie
+            • 📡 0 appareil silencieux
+
+            {{ debug_trigger }}
+
+  # --- EXÉCUTION DES NOTIFICATIONS ---
+  - parallel:
+      # 1. Notification persistante (si activée via l'input UI)
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ is_persistent_enabled }}"
+            sequence:
+              - action: persistent_notification.create
+                data:
+                  title: "{{ message_title }}"
+                  message: "{{ message }}"
+                  notification_id: "zigbee_report_{{ now().strftime('%Y%m%d_%H%M%S') }}"
+
+      # 2. Actions de notification personnalisées de l'utilisateur
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "true"
+            sequence: !input custom_actions

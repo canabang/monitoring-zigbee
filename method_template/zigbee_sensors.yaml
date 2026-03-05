@@ -193,14 +193,14 @@
     - name: "Zigbee Battery Alerts"
       unique_id: zigbee_battery_alerts
       state: >
-        {# Ce capteur compte les devices nécessitant une attention (Offline, Pile < 15% ou Inconnue) #}
+        {# Ce capteur compte les devices nécessitant une attention (Offline, Pile < 20% ou Inconnue) #}
         {# FIX V5: Gestion des valeurs ~90/~50/~10 pour batteries textuelles #}
         {% set devices = state_attr('sensor.z2m_battery_devices', 'devices') | default([]) %}
         {% set alerts = namespace(count=0) %}
         {% for d in devices %}
           {% set batt_str = d.battery | string %}
           {% set battery_val = batt_str | replace('~', '') | float(-1) if batt_str != '?' else -1 %}
-          {% if d.status == 'online' and (d.battery == '?' or (battery_val != -1 and battery_val < 15)) %}
+          {% if d.status == 'online' and (d.battery == '?' or (battery_val != -1 and battery_val < 20)) %}
             {% set alerts.count = alerts.count + 1 %}
           {% endif %}
         {% endfor %}
@@ -216,7 +216,7 @@
           {% for d in devices %}
             {% set batt_str = d.battery | string %}
             {% set battery_val = batt_str | replace('~', '') | float(-1) if batt_str != '?' else -1 %}
-            {% if d.status == 'online' and (d.battery == '?' or (battery_val != -1 and battery_val < 15)) %}
+            {% if d.status == 'online' and (d.battery == '?' or (battery_val != -1 and battery_val < 20)) %}
               {% set list.items = list.items + [d] %}
             {% endif %}
           {% endfor %}

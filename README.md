@@ -23,15 +23,17 @@ Ce projet permet de surveiller l'état de santé de tous vos appareils Zigbee su
 
 ```
 monitoring-zigbee/
-├── method_package/                  # OPTION A : La Méthode "Package" (Recommandée)
-│   └── zigbee_monitoring_package.yaml # Tout-en-un (Sensors + Automation)
+├── method_package/                  # OPTION A : La Méthode "Package" (Capteurs seuls - V1.1)
+│   └── zigbee_monitoring_package.yaml # Les capteurs (Automation commentée, utiliser le Blueprint)
 │
 ├── method_template/                 # OPTION B : La Méthode "Classique" (yaml séparés)
 │   ├── zigbee_sensors.yaml          # Capteurs (inventaire, alertes, réseau)
-│   ├── zigbee_report.yaml           # Automation standard (Notification HA)
+│   ├── zigbee_report.yaml           # Automation standard (Pour archive/exemple)
 │   └── zigbee_report_perso.yaml     # Automation personnalisée (Exemple complexe)
 │
+├── zigbee_report_blueprint.yaml     # 🧩 LE BLUEPRINT OFFICIEL (Recommandé pour l'automatisation)
 ├── dashboard_unified_grid.yaml      # Carte Dashboard (Commune aux 2 méthodes)
+├── test_mushroom_card.yaml          # Carte test Mushroom avec attributs
 ├── archive/                         # Anciens fichiers
 └── README.md                        # Ce fichier
 ```
@@ -51,8 +53,8 @@ Si votre installation Zigbee2MQTT utilise le topic par défaut (`zigbee2mqtt`), 
 
 Pour installer ce projet, choisissez **UNE SEULE** des 2 méthodes ci-dessous.
 
-### 🌟 Méthode 1 : Le Package (Recommandée)
-C'est la plus simple : un seul fichier à gérer.
+### 🌟 Méthode 1 : Le Package + Blueprint (Recommandée)
+C'est la plus simple et la plus modulable grâce au Blueprint (V1.1).
 
 1. Vérifiez que vous avez ceci dans `configuration.yaml` :
 ```yaml
@@ -61,13 +63,12 @@ homeassistant:
 ```
 2. Créez le dossier `/config/packages/` s'il n'existe pas.
 3. Copiez le fichier `method_package/zigbee_monitoring_package.yaml` dedans.
-4. Redémarrez Home Assistant.
+4. Importez le Blueprint `zigbee_report_blueprint.yaml` dans Home Assistant.
+5. Créez une automatisation basée sur ce Blueprint depuis l'interface UI.
+6. Redémarrez Home Assistant.
 
-> [!WARNING]
-> **Limitation de l'édition** : Les automatisations incluses dans un package sont **en lecture seule** dans l'interface graphique de Home Assistant.
-> Si vous voulez modifier l'heure du rapport ou le message, vous devrez éditer directement le fichier `method_package/zigbee_monitoring_package.yaml`.
-> 
-> **Astuce** : Vous pouvez cliquer sur le bouton **"Migrer"** (dans le bandeau jaune) pour déplacer cette automatisation vers `automations.yaml`. Cela la rendra modifiable via l'interface, mais elle ne sera plus liée au fichier du package.
+> [!TIP]
+> **Pourquoi le Blueprint ?** L'automatisation incluse dans le package a été désactivée (commentée). Le Blueprint vous permet de gérer facilement l'heure du rapport, l'ajout de notifications personnalisées (Discord, Mobile App) via l'interface UI de HA sans toucher au code !
 
 ### ⚙️ Méthode 2 : Les Fichiers "Split" (Avancé)
 Si vous préférez séparer vos capteurs et vos automatisations (méthode classique).
@@ -113,7 +114,7 @@ Ce capteur analyse la qualité du signal (LQI - Link Quality Indication) de chaq
 Ce capteur filtre la liste du capteur maître pour ne sortir que les appareils nécessitant une intervention humaine.
 
 **Critères d'alerte :**
-- Niveau de batterie `< 15%`.
+- Niveau de batterie `< 20%` (Modifié en V1.1).
 - Niveau de batterie inconnu (`?`).
 
 *(Note : Les appareils signalés hors-ligne ou silencieux ne sont plus comptabilisés ici, ils ont leur propre alerte réseau dédiée).*
@@ -157,32 +158,26 @@ Cette carte regroupe **Batteries + Réseau + Bouton Actualiser** en une seule gr
 > [!NOTE]
 > Les anciennes cartes séparées (`dashboard_card.yaml`, `dashboard_network_card.yaml`, etc.) ont été déplacées dans le dossier `archive/` pour clarté.
 
-## 🤖 Automatisation : Rapport Journalier
+## 🤖 Automatisation : Le Blueprint V1.1
 
-Deux versions sont disponibles :
+La gestion des notifications se fait désormais via le **Blueprint officiel** (`zigbee_report_blueprint.yaml`).
 
-| Fichier | Description |
+| Trigger | Description |
 |---------|-------------|
-| `zigbee_report_simple.yaml` | **Recommandé** - Notification persistante HA (aucune dépendance) |
-| `zigbee_report.yaml` | Version perso avec K-2SO, Discord et Awtrix |
+| `scheduled` | Rapport quotidien à l'heure choisie via l'interface (défaut : 20h00) |
+| `ha_start` | Au démarrage de HA (Avec délai configurable, défaut : 5 minutes) |
+| `battery_alert` | Dès qu'une batterie passe sous le seuil critique (< 20%) |
+| `network_alert` | Dès qu'un appareil devient silencieux |
 
-### Version Simplifiée (`zigbee_report_simple.yaml`)
+**Avantages du Blueprint :**
+1. **Entités détectées automatiquement** (si installation via ce tuto).
+2. **Interface Graphique** : Plus besoin de toucher au YAML pour changer l'heure du rapport.
+3. **Actions Personnalisées** : Un bloc vous permet d'ajouter très simplement n'importe quelle notification (Mobile App, Discord, Telegram...) en complément de la notification persistante de Home Assistant. Les variables du script (comme `{{ alert_summary }}`) sont disponibles pour vos actions !
 
-Utilise uniquement les **notifications persistantes** de Home Assistant.
+> [!NOTE]
+> L'ancienne fonction de boucle ("loop_alert" toutes les 2 heures) a été retirée pour éviter le spam inutile, l'anti-spam de base étant suffisant pour traiter les nouvelles alertes ou le franchissement de seuils.
 
-| Trigger ID | Quand ? |
-|------------|---------|
-| `scheduled` | Tous les jours à 20h00 |
-| `loop_alert` | Toutes les 2 heures (Uniquement s'il y a une panne réseau) |
-| `ha_start` | Au démarrage de HA (Avec 5 minutes d'attente pour l'initialisation du réseau) |
-| `battery_alert` | Dès qu'une batterie passe sous le seuil critique (<15%) |
-| `network_alert` | Dès qu'un appareil devient silencieux (>12h) |
-
-**Installation :**
-1. Copiez le fichier dans votre dossier `automations/` ou collez le contenu dans l'éditeur d'automatisation.
-2. Rechargez les automatisations.
-
-![Notification persistante](notif.png)
+![Démonstration du Blueprint](blueprint.png) *(Ajouter image au besoin)*
 
 ### Test 1 : Simuler une alerte (Outils de développement > États)
 
