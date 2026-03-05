@@ -32,8 +32,9 @@ monitoring-zigbee/
 │   └── zigbee_report_perso.yaml     # Automation personnalisée (Exemple complexe)
 │
 ├── zigbee_report_blueprint.yaml     # 🧩 LE BLUEPRINT OFFICIEL (Recommandé pour l'automatisation)
-├── dashboard_unified_grid.yaml      # Carte Dashboard (Commune aux 2 méthodes)
-├── test_mushroom_card.yaml          # Carte test Mushroom avec attributs
+├── Dashboard/                       # Cartes Dashboard pour l'UI
+│   ├── dashboard_unified_grid.yaml  # Carte Dashboard (Commune aux 2 méthodes)
+│   └── test_mushroom_card.yaml      # Carte test Mushroom avec attributs
 ├── archive/                         # Anciens fichiers
 └── README.md                        # Ce fichier
 ```
@@ -135,7 +136,7 @@ Vous pouvez vérifier l'action en observant l'attribut `last_check` qui change �
 > Une fois le système stabilisé, un clic sur le bouton "Actualiser" remettra tout d'équerre.
 
 ### Dashboard Unifié (Vue "Sections")
-Fichier : `dashboard_unified_grid.yaml`
+Fichier : `Dashboard/dashboard_unified_grid.yaml`
 
 Cette carte regroupe **Batteries + Réseau + Bouton Actualiser** en une seule grille optimisée.
 
@@ -143,7 +144,7 @@ Cette carte regroupe **Batteries + Réseau + Bouton Actualiser** en une seule gr
 1. Créez une nouvelle Section dans votre dashboard.
 2. Cliquez sur le crayon (Editer) de la section.
 3. Passez en éditeur YAML (souvent via les 3 points ou "Afficher l'éditeur de code").
-4. Collez l'intégralité du contenu de `dashboard_unified_grid.yaml`.
+4. Collez l'intégralité du contenu de `Dashboard/dashboard_unified_grid.yaml`.
 
 
 ![Démonstration du Dashboard Unifié](dashboard_unified_grid.gif)
